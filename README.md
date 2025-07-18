@@ -68,21 +68,21 @@ go run main.go
 
 ## 常见问题 FAQ
 
-**Q: 支持 GitHub PR 吗？**
-**A: 当前仅支持 GitLab MR，GitHub PR 暂不支持。**
+**Q: 支持 GitHub PR 吗？**   
+**A: 当前仅支持 GitLab MR，GitHub PR 暂不支持。**   
 
-**Q: 支持哪些 AI 大模型？**
-A: 支持 OpenAI 兼容 API（gpt-3.5-turbo/gpt-4/moonshot/qwen/glm等），可自定义模型和API地址。
+**Q: 支持哪些 AI 大模型？**   
+A: 支持 OpenAI 兼容 API（gpt-3.5-turbo/gpt-4/moonshot/qwen/glm等），可自定义模型和API地址。   
 
-**Q: 如何获取项目ID？**
-A: 见 GitLab 项目设置页面底部，或用 API 查询。
+**Q: 如何获取项目ID？**   
+A: 见 GitLab 项目设置页面底部，或用 API 查询。   
 
-**Q: 支持多项目吗？**
-A: 支持，`projects` 列表可配置多个项目。
+**Q: 支持多项目吗？**   
+A: 支持，`projects` 列表可配置多个项目。   
 
-**Q: 支持自建/私有 GitLab 吗？**
-A: 支持，`gitlab.url` 填你的私有地址即可。
+**Q: 支持自建/私有 GitLab 吗？**   
+A: 支持，`gitlab.url` 填你的私有地址即可。   
 
-**Q: 如何自定义分析频率？**
-A: 修改 `internal/gitlab.go` 里的 `time.Sleep` 参数。
+**Q: 如何自定义分析频率？**   
+A: 修改 `internal/gitlab.go` 里的 `time.Sleep` 参数。   
 
