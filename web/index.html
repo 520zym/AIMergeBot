@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>PR_Agent 安全分析</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <style>
+        :root {
+            --ant-blue: #1677ff;
+            --ant-blue-dark: #0958d9;
+            --ant-gray-bg: #f5f7fa;
+            --ant-card-bg: #fff;
+            --ant-border: #e5e6eb;
+            --ant-text-main: #222;
+            --ant-text-sub: #666;
+            --ant-danger: #ff4d4f;
+            --ant-warning: #faad14;
+            --ant-success: #52c41a;
+            --ant-shadow: 0 2px 8px #e3e8ee33;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Arial', sans-serif;
+            background: var(--ant-gray-bg);
+            margin: 0;
+            padding: 0;
+        }
+        .ant-nav {
+            background: var(--ant-blue);
+            color: #fff;
+            padding: 0.9em 0 0.9em 0;
+            text-align: left;
+            font-size: 1.25em;
+            font-weight: 600;
+            letter-spacing: 1px;
+            box-shadow: var(--ant-shadow);
+            padding-left: 2.5em;
+        }
+        .ant-container {
+            max-width: 1100px;
+            margin: 2.5em auto 2em auto;
+            background: var(--ant-card-bg);
+            border-radius: 10px;
+            box-shadow: var(--ant-shadow);
+            padding: 2.2em 2.5em 2.2em 2.5em;
+        }
+        @media (max-width: 700px) {
+            .ant-container { padding: 1em 0.5em; }
+        }
+        .ant-section {
+            margin-bottom: 2.2em;
+        }
+        .ant-section-title {
+            font-size: 1.13em;
+            color: var(--ant-blue);
+            font-weight: 600;
+            margin-bottom: 0.7em;
+        }
+        .ant-stats-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5em;
+            align-items: center;
+            font-size: 1.05em;
+            margin-bottom: 1.2em;
+        }
+        .ant-stats-bar span {
+            margin-right: 0.7em;
+        }
+        .ant-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5em;
+            align-items: center;
+            margin-bottom: 1.2em;
+        }
+        .ant-filter-bar label {
+            color: #555;
+            font-size: 1em;
+        }
+        .ant-filter-bar select, .ant-filter-bar button {
+            font-size: 1em;
+            padding: 0.3em 1.2em;
+            border-radius: 6px;
+            border: 1px solid var(--ant-border);
+            background: #f7f7f7;
+            margin-right: 1em;
+            transition: border 0.2s, box-shadow 0.2s;
+        }
+        .ant-filter-bar select:focus, .ant-filter-bar button:focus {
+            border: 1.5px solid var(--ant-blue);
+            outline: none;
+            box-shadow: 0 0 0 2px #e6f4ff;
+        }
+        .ant-filter-bar button {
+            background: var(--ant-blue);
+            color: #fff;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            margin-left: 1em;
+            transition: background 0.2s;
+        }
+        .ant-filter-bar button:hover {
+            background: var(--ant-blue-dark);
+        }
+        .ant-mr-card {
+            background: #f7faff;
+            border-radius: 8px;
+            box-shadow: var(--ant-shadow);
+            padding: 1.2em 1.5em 1.2em 1.5em;
+            margin-bottom: 2em;
+            border-left: 4px solid var(--ant-blue);
+            border-right: 0;
+            border-top: 0;
+            border-bottom: 0;
+        }
+        .ant-mr-title {
+            font-size: 1.13em;
+            font-weight: 600;
+            color: var(--ant-blue);
+        }
+        .ant-mr-meta {
+            color: #888;
+            font-size: 0.97em;
+            margin: 0.3em 0 0.5em 0;
+        }
+        .ant-mr-link {
+            color: var(--ant-blue);
+            text-decoration: none;
+            font-size: 1em;
+            margin-left: 1em;
+        }
+        .ant-file-block {
+            margin: 1.2em 0 2em 0;
+            border-radius: 6px;
+            background: #f8fafd;
+            border: 1px solid #e3e8ee;
+            box-shadow: none;
+        }
+        .ant-file-header {
+            padding: 0.6em 1.1em;
+            background: #f3f6fa;
+            border-radius: 6px 6px 0 0;
+            font-weight: 600;
+            color: var(--ant-blue);
+            font-size: 1.01em;
+            border-bottom: 1px solid #e3e8ee;
+        }
+        .ant-file-content {
+            padding: 1.1em 1.3em 1.1em 1.3em;
+        }
+        .ant-risk-card {
+            border-radius: 6px;
+            box-shadow: 0 1px 4px #f0f0f0;
+            background: #fff;
+            border-left: 5px solid var(--ant-danger);
+            margin-bottom: 1.2em;
+            padding: 1em 1.2em 1em 1.2em;
+            transition: box-shadow 0.2s;
+        }
+        .ant-risk-card.low { border-left-color: var(--ant-success); }
+        .ant-risk-card.medium { border-left-color: var(--ant-warning); }
+        .ant-risk-card.high { border-left-color: var(--ant-danger); }
+        .ant-risk-header {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            font-size: 1.05em;
+            font-weight: 600;
+            margin-bottom: 0.2em;
+        }
+        .ant-risk-type {
+            padding: 0.1em 0.7em;
+            border-radius: 10px;
+            font-size: 0.95em;
+            background: #eaf2fb;
+            color: var(--ant-blue);
+            margin-right: 0.7em;
+        }
+        .ant-risk-level {
+            padding: 0.1em 0.7em;
+            border-radius: 10px;
+            font-size: 0.95em;
+            font-weight: bold;
+            color: #fff;
+            background: var(--ant-danger);
+        }
+        .ant-risk-level.low { background: var(--ant-success); }
+        .ant-risk-level.medium { background: var(--ant-warning); }
+        .ant-risk-level.high { background: var(--ant-danger); }
+        .ant-risk-desc {
+            color: #222;
+            margin-bottom: 0.6em;
+            font-size: 1em;
+        }
+        .ant-codeblock {
+            background: #f6f8fa;
+            border-radius: 5px;
+            font-size: 0.98em;
+            margin: 0.6em 0 0.8em 0;
+            padding: 0.6em 1em;
+            overflow-x: auto;
+            font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
+        }
+        .ant-risk-suggestion {
+            background: #f9fbe7;
+            border-radius: 4px;
+            padding: 0.4em 1em;
+            color: #6d7b00;
+            margin-bottom: 0.4em;
+            font-size: 0.98em;
+        }
+        .ant-risk-meta {
+            color: #888;
+            font-size: 0.96em;
+            margin-bottom: 0.2em;
+        }
+        .ant-risk-context {
+            background: #f4f4f4;
+            border-radius: 4px;
+            padding: 0.4em 1em;
+            color: #555;
+            font-size: 0.96em;
+        }
+        @media (max-width: 700px) {
+            .ant-container { padding: 1em 0.5em; }
+            .ant-file-content { padding: 1em 0.5em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="ant-nav">PR_Agent 安全分析</div>
+    <div class="ant-container">
+        <div class="ant-section">
+            <div class="ant-filter-bar" id="controls"></div>
+            <div class="ant-stats-bar" id="stats"></div>
+        </div>
+        <div class="ant-section" id="results">加载中...</div>
+    </div>
+    <script>
+        function levelColor(level) {
+            if (!level) return '#888';
+            if (level === 'high') return '#ff4d4f';
+            if (level === 'medium') return '#faad14';
+            if (level === 'low') return '#52c41a';
+            return '#888';
+        }
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+        let filterLevel = 'all';
+        let filterType = 'all';
+        function renderStats(allIssues) {
+            const statsDiv = document.getElementById('stats');
+            if (!allIssues.length) { statsDiv.innerHTML = ''; return; }
+            const total = allIssues.length;
+            const high = allIssues.filter(i => i.level === 'high').length;
+            const medium = allIssues.filter(i => i.level === 'medium').length;
+            const low = allIssues.filter(i => i.level === 'low').length;
+            const types = [...new Set(allIssues.map(i => i.type))];
+            statsDiv.innerHTML = `<b>风险统计：</b> 总数: ${total}，高危: <span style='color:#ff4d4f'>${high}</span>，中危: <span style='color:#faad14'>${medium}</span>，低危: <span style='color:#52c41a'>${low}</span>，类型: ${types.join(' / ')}`;
+        }
+        function renderControls(types) {
+            const controlsDiv = document.getElementById('controls');
+            controlsDiv.innerHTML = `
+                <label>风险等级筛选：</label>
+                <select id="levelFilter">
+                    <option value="all">全部</option>
+                    <option value="high">高危</option>
+                    <option value="medium">中危</option>
+                    <option value="low">低危</option>
+                </select>
+                <label style="margin-left:1em;">风险类型筛选：</label>
+                <select id="typeFilter">
+                    <option value="all">全部</option>
+                    ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
+                </select>
+                <button id="refreshBtn">刷新</button>
+            `;
+            document.getElementById('levelFilter').onchange = e => { filterLevel = e.target.value; fetchResults(); };
+            document.getElementById('typeFilter').onchange = e => { filterType = e.target.value; fetchResults(); };
+            document.getElementById('refreshBtn').onclick = fetchResults;
+        }
+        function groupByFile(issues) {
+            const map = {};
+            issues.forEach(i => {
+                if (!i.file) i.file = '未知文件';
+                if (!map[i.file]) map[i.file] = [];
+                map[i.file].push(i);
+            });
+            return map;
+        }
+        async function fetchResults() {
+            const res = await fetch('/results');
+            const data = await res.json();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            let allIssues = [];
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(r => {
+                    if (r.result && r.result.length > 0) allIssues = allIssues.concat(r.result);
+                });
+            }
+            renderStats(allIssues);
+            renderControls([...new Set(allIssues.map(i => i.type))]);
+            if (data.results && data.results.length > 0) {
+                data.results.forEach((r, idx) => {
+                    if (idx > 0) {
+                        const divider = document.createElement('hr');
+                        divider.style.border = 'none';
+                        divider.style.borderTop = '1.5px solid #f0f1f3';
+                        divider.style.margin = '2.2em 0 2.2em 0';
+                        resultsDiv.appendChild(divider);
+                    }
+                    // MR卡片头部
+                    const mrCard = document.createElement('div');
+                    mrCard.className = 'ant-mr-card';
+                    mrCard.innerHTML = `
+                        <div class="ant-mr-title">${escapeHtml(r.mr_title || '')}
+                            <span style="color:#888;font-size:0.95em;">（MR #${r.mr_id}，项目：${escapeHtml(r.project_name || '')} / ${escapeHtml(r.project_path || '')}）</span>
+                            <a href="${r.mr_url}" target="_blank" class="ant-mr-link">查看 MR</a>
+                        </div>
+                        <div class="ant-mr-meta">作者：${escapeHtml(r.mr_author || '')}，分支：${escapeHtml(r.mr_branch || '')}，创建时间：${escapeHtml(r.mr_created || '')}</div>
+                        <div class="ant-mr-meta">${escapeHtml(r.mr_desc || '')}</div>
+                    `;
+                    resultsDiv.appendChild(mrCard);
+                    if (!r.result || r.result.length === 0) {
+                        const noRisk = document.createElement('div');
+                        noRisk.className = 'result';
+                        noRisk.textContent = '未发现安全风险';
+                        resultsDiv.appendChild(noRisk);
+                        return;
+                    }
+                    // 分组：文件
+                    const fileMap = groupByFile(r.result.filter(issue => {
+                        if (filterLevel !== 'all' && issue.level !== filterLevel) return false;
+                        if (filterType !== 'all' && issue.type !== filterType) return false;
+                        return true;
+                    }));
+                    Object.keys(fileMap).forEach(file => {
+                        const fileBlock = document.createElement('div');
+                        fileBlock.className = 'ant-file-block';
+                        const fileHeader = document.createElement('div');
+                        fileHeader.className = 'ant-file-header';
+                        fileHeader.innerHTML = `${escapeHtml(file)} <span style="font-size:0.9em;color:#aaa;">（${fileMap[file].length} 个风险）</span>`;
+                        const fileContent = document.createElement('div');
+                        fileContent.className = 'ant-file-content';
+                        fileBlock.appendChild(fileHeader);
+                        fileBlock.appendChild(fileContent);
+                        fileMap[file].forEach(issue => {
+                            const card = document.createElement('div');
+                            card.className = `ant-risk-card ${issue.level || ''}`;
+                            card.innerHTML = `
+                                <div class="ant-risk-header">
+                                    <span class="ant-risk-type">${escapeHtml(issue.type || '未知风险')}</span>
+                                    <span class="ant-risk-level ${issue.level || ''}">${issue.level ? issue.level.toUpperCase() : ''}</span>
+                                </div>
+                                <div class="ant-risk-desc">${escapeHtml(issue.desc || '')}</div>
+                                <pre class="ant-codeblock"><code>${escapeHtml(issue.code || '')}</code></pre>
+                                <div class="ant-risk-suggestion">建议：${escapeHtml(issue.suggestion || '')}</div>
+                                <div class="ant-risk-meta">${issue.file ? `<a href="${r.gitlab_base_url}/${r.project_path}/-/merge_requests/${r.mr_id}/diffs?view=parallel" target="_blank">文件: ${escapeHtml(issue.file)}</a>` : ''}</div>
+                                <div class="ant-risk-context">${issue.context ? escapeHtml(issue.context) : ''}</div>
+                            `;
+                            fileContent.appendChild(card);
+                        });
+                        resultsDiv.appendChild(fileBlock);
+                    });
+                });
+                setTimeout(() => {
+                    document.querySelectorAll('pre.ant-codeblock code').forEach(block => { window.hljs && window.hljs.highlightElement(block); });
+                }, 100);
+            } else {
+                resultsDiv.textContent = '暂无分析结果';
+            }
+        }
+        fetchResults();
+    </script>
+</body>
+</html> 

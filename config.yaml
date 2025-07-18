@@ -1,0 +1,14 @@
+# PR_Agent 配置
+listen: ":8080"
+gitlab:
+  token: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  url: "https://gitlab.com"
+openai:
+  api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  url: "https://openai.com/api/v1"
+  model: "gpt-4o-mini"
+projects:
+  - id: 1234567890
+    name: "your-group/your-project"
+enable_polling: true
+enable_webhook: true
