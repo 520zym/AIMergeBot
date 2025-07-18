@@ -20,7 +20,7 @@
 ### 1. 克隆项目
 ```bash
 git clone https://github.com/Ed1s0nZ/AIMergeBot.git
-cd PR_Agent
+cd AIMergeBot
 ```
 
 ### 2. 安装依赖
