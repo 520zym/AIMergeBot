@@ -62,7 +62,14 @@ go run main.go
 ---
 
 ## 界面预览
-![界面预览](./image/screenshot.png)
+1. 展示界面：   
+  ![界面预览](./image/展示.png)
+
+2. 详情界面：      
+  ![详情预览](./image/详情.png)
+
+3. 评论界面：   
+  ![详情预览](./image/评论.png)
 
 ---
 
