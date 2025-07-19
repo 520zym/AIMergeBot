@@ -60,6 +60,8 @@ enable_webhook: true
 enable_mr_comment: true
 # 是否全量扫描历史 MR（true=全量，false=只扫新/增量 MR）
 scan_existing_mrs: true  # true=全量扫描，false=只扫增量MR
+# 检测文件白名单，命中这些扩展名的文件将不进行检测
+whitelist_extensions: ["txt", "md", "xlsx", "xls", "csv","zip"]
 ```
 - `id` 为项目数字ID（见 GitLab 项目设置）
 - `enable_polling` 主动轮询，`enable_webhook` 支持 Webhook
