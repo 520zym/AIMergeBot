@@ -39,6 +39,24 @@ func RegisterResultRoute(r *gin.Engine, storage *Storage) {
 		}
 		c.JSON(200, projects)
 	})
+	// 新增：审核状态更新接口
+	r.POST("/review_status", func(c *gin.Context) {
+		var req struct {
+			MRID         int    `json:"mr_id"`
+			ProjectID    int    `json:"project_id"`
+			IssueIndex   int    `json:"issue_index"` // 第几个风险
+			ReviewStatus string `json:"review_status"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"error": "参数错误"})
+			return
+		}
+		if err := storage.UpdateReviewStatus(req.ProjectID, req.MRID, req.IssueIndex, req.ReviewStatus); err != nil {
+			c.JSON(500, gin.H{"error": "更新失败", "detail": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"msg": "success"})
+	})
 }
 
 // 支持分页和过滤的结果查询

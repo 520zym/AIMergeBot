@@ -50,4 +50,5 @@ type SecurityIssue struct {
 	Level         string         `json:"level"`
 	Context       string         `json:"context"`
 	FixSuggestion string         `json:"fix_suggestion"`
+	ReviewStatus  string         `json:"review_status"` // 新增：审核状态
 }
