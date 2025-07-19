@@ -74,3 +74,28 @@ func (s *Storage) GetAllResults() ([]MRAnalysisResult, error) {
 	}
 	return results, nil
 }
+
+func (s *Storage) GetAllProjectsFromResults() ([]Project, error) {
+	rows, err := s.db.Query("SELECT result_json FROM results")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	projectMap := map[int]Project{}
+	for rows.Next() {
+		var jsonStr string
+		if err := rows.Scan(&jsonStr); err == nil {
+			var r MRAnalysisResult
+			if err := json.Unmarshal([]byte(jsonStr), &r); err == nil {
+				if r.ProjectID != 0 && r.ProjectName != "" {
+					projectMap[r.ProjectID] = Project{ID: r.ProjectID, Name: r.ProjectName, Path: r.ProjectPath}
+				}
+			}
+		}
+	}
+	projects := []Project{}
+	for _, p := range projectMap {
+		projects = append(projects, p)
+	}
+	return projects, nil
+}

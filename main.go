@@ -43,6 +43,12 @@ func main() {
 	storage := internal.NewStorage("pr_agent.db")
 
 	r := gin.Default()
+	// 中间件：每次请求都注入 config
+	r.Use(func(c *gin.Context) {
+		cfg := globalConfig.Load().(*internal.Config)
+		c.Set("config", cfg)
+		c.Next()
+	})
 	internal.RegisterResultRoute(r, storage) // 注册 /results 路由
 	r.POST("/webhook", func(c *gin.Context) {
 		cfg := globalConfig.Load().(*internal.Config)

@@ -646,11 +646,18 @@
         
         let filterLevel = 'all';
         let filterType = 'all';
+        let filterProject = 'all';
         let currentPage = 1;
         let pageSize = 20;
         let totalPages = 0;
         let totalResults = 0;
-        
+        let allProjects = [];
+
+        async function fetchProjects() {
+            const res = await fetch('/projects');
+            allProjects = await res.json();
+        }
+
         function renderStats(stats) {
             const statsDiv = document.getElementById('stats');
             if (!stats || stats.total === 0) {
@@ -684,6 +691,13 @@
             controlsDiv.innerHTML = `
                 <div class="filters-grid">
                     <div class="filter-group">
+                        <label for="projectFilter">项目</label>
+                        <select id="projectFilter">
+                            <option value="all">全部项目</option>
+                            ${allProjects.map(p => `<option value="${p.id}">${p.path || p.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="levelFilter">风险等级</label>
                         <select id="levelFilter">
                             <option value="all">全部等级</option>
@@ -713,10 +727,12 @@
                 </div>
             `;
             
+            document.getElementById('projectFilter').value = filterProject;
             document.getElementById('levelFilter').value = filterLevel;
             document.getElementById('typeFilter').value = filterType;
             document.getElementById('pageSizeFilter').value = pageSize;
             
+            document.getElementById('projectFilter').onchange = e => { filterProject = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('levelFilter').onchange = e => { filterLevel = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('typeFilter').onchange = e => { filterType = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('pageSizeFilter').onchange = e => { pageSize = parseInt(e.target.value); currentPage = 1; fetchResults(); };
@@ -816,6 +832,9 @@
                 size: pageSize
             });
             
+            if (filterProject !== 'all') {
+                params.append('project_id', filterProject);
+            }
             if (filterLevel !== 'all') {
                 params.append('level', filterLevel);
             }
@@ -992,8 +1011,9 @@
         
         fetchResults();
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // The exportPdfBtn event listener is now handled within renderControls
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchProjects();
+            fetchResults();
         });
     </script>
 </body>

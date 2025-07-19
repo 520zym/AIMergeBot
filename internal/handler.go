@@ -9,10 +9,35 @@ import (
 	"github.com/xanzy/go-gitlab"
 )
 
+// 在import后添加类型别名
+type MRAnalysisResult = struct {
+	MRID          int             `json:"mr_id"`
+	ProjectID     int             `json:"project_id"`
+	ProjectName   string          `json:"project_name"`
+	ProjectPath   string          `json:"project_path"`
+	MRTitle       string          `json:"mr_title"`
+	MRAuthor      string          `json:"mr_author"`
+	MRCreated     string          `json:"mr_created"`
+	MRBranch      string          `json:"mr_branch"`
+	MRDesc        string          `json:"mr_desc"`
+	MRUrl         string          `json:"mr_url"`
+	GitLabBaseUrl string          `json:"gitlab_base_url"`
+	Result        []SecurityIssue `json:"result"`
+}
+
 // 注册 /results 路由，支持分页和过滤
 func RegisterResultRoute(r *gin.Engine, storage *Storage) {
 	r.GET("/results", func(c *gin.Context) {
 		GetResultsHandler(c, storage)
+	})
+	// 新增项目列表接口
+	r.GET("/projects", func(c *gin.Context) {
+		projects, err := storage.GetAllProjectsFromResults()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询项目列表失败"})
+			return
+		}
+		c.JSON(200, projects)
 	})
 }
 
