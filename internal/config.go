@@ -22,10 +22,11 @@ type Config struct {
 		Name string `yaml:"name"`
 		Path string `yaml:"path"`
 	} `yaml:"projects"`
-	EnableWebhook   bool `yaml:"enable_webhook"`
-	EnableMRComment bool `yaml:"enable_mr_comment"`
-	ScanExistingMRs bool `yaml:"scan_existing_mrs"`
-	EnablePolling   bool `yaml:"enable_polling"`
+	EnableWebhook       bool     `yaml:"enable_webhook"`
+	EnableMRComment     bool     `yaml:"enable_mr_comment"`
+	ScanExistingMRs     bool     `yaml:"scan_existing_mrs"`
+	EnablePolling       bool     `yaml:"enable_polling"`
+	WhitelistExtensions []string `yaml:"whitelist_extensions"`
 }
 
 func LoadConfig(path string) (*Config, error) {

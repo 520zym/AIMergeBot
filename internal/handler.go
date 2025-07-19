@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -218,9 +219,14 @@ func WebhookHandler(cfg *Config, storage *Storage) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "GitLab 客户端初始化失败"})
 			return
 		}
-		diff, err := GetMRDiff(git, projectID, mrIID)
+		diff, err := GetMRDiffWithWhitelist(git, projectID, mrIID, cfg.WhitelistExtensions)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "获取 MR diff 失败", "detail": err.Error()})
+			return
+		}
+		if diff == "" {
+			log.Printf("[AIMergeBot] MR !%d 所有变更文件均为白名单，跳过分析", mrIID)
+			c.JSON(http.StatusOK, gin.H{"msg": "MR 所有变更文件均为白名单，跳过分析"})
 			return
 		}
 

@@ -29,6 +29,41 @@ func GetMRDiff(git *gitlab.Client, projectID int, mrIID int) (string, error) {
 	return diff, nil
 }
 
+// 新增：带白名单过滤的 MR diff 获取
+func GetMRDiffWithWhitelist(git *gitlab.Client, projectID int, mrIID int, whitelistExtensions []string) (string, error) {
+	opts := &gitlab.GetMergeRequestChangesOptions{}
+	mr, _, err := git.MergeRequests.GetMergeRequestChanges(projectID, mrIID, opts)
+	if err != nil {
+		return "", err
+	}
+	if mr == nil || mr.Changes == nil {
+		return "", nil
+	}
+	diff := ""
+	for _, change := range mr.Changes {
+		if IsWhitelistedFile(whitelistExtensions, change.NewPath) {
+			log.Printf("[AIMergeBot] 跳过白名单文件: %s", change.NewPath)
+			continue // 跳过白名单文件
+		}
+		diff += "File: " + change.NewPath + "\n"
+		diff += change.Diff + "\n"
+	}
+	return diff, nil
+}
+
+// 判断文件是否在白名单扩展名内
+func IsWhitelistedFile(exts []string, filename string) bool {
+	if len(exts) == 0 || filename == "" {
+		return false
+	}
+	for _, ext := range exts {
+		if len(ext) > 0 && len(filename) > len(ext)+1 && filename[len(filename)-len(ext)-1:] == "."+ext {
+			return true
+		}
+	}
+	return false
+}
+
 func formatMRComment(issues []SecurityIssue) string {
 	if len(issues) == 0 {
 		return "🔍 **AI安全审查完成**\n\n✅ 未发现明显安全问题，代码经AI初步分析未发现高风险项。"
@@ -141,9 +176,13 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 					continue
 				}
 				storage.SetAnalyzedStatus(p.ID, mr.IID, "processing")
-				diff, err := GetMRDiff(git, p.ID, mr.IID)
+				diff, err := GetMRDiffWithWhitelist(git, p.ID, mr.IID, cfg.WhitelistExtensions)
 				if err != nil {
 					log.Printf("获取 MR diff 失败: %v", err)
+					continue
+				}
+				if diff == "" {
+					log.Printf("[AIMergeBot] MR !%d 所有变更文件均为白名单，跳过分析", mr.IID)
 					continue
 				}
 				log.Printf("分析 MR !%d diff 内容:\n%s", mr.IID, diff)
