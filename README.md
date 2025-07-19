@@ -1,6 +1,7 @@
 # AIMergeBot
 
 > 🚀 自动化代码安全审查平台，支持 GitLab MR ，AI 智能检测 SQL注入、XSS、敏感信息泄露等风险，开箱即用！
+>[ bilibili视频介绍](https://www.bilibili.com/video/BV1wpuozTETg/?vd_source=32c8f3da92120ecaedeefea506bf5be8)
 
 ---
 
