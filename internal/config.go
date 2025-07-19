@@ -20,6 +20,7 @@ type Config struct {
 	Projects []struct {
 		ID   int    `yaml:"id"`
 		Name string `yaml:"name"`
+		Path string `yaml:"path"`
 	} `yaml:"projects"`
 	EnableWebhook   bool `yaml:"enable_webhook"`
 	EnableMRComment bool `yaml:"enable_mr_comment"`
