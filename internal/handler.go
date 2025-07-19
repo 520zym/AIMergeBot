@@ -23,6 +23,7 @@ type MRAnalysisResult = struct {
 	MRUrl         string          `json:"mr_url"`
 	GitLabBaseUrl string          `json:"gitlab_base_url"`
 	Result        []SecurityIssue `json:"result"`
+	ReviewStatus  string          `json:"review_status"` // 新增字段
 }
 
 // 注册 /results 路由，支持分页和过滤
@@ -40,22 +41,28 @@ func RegisterResultRoute(r *gin.Engine, storage *Storage) {
 		c.JSON(200, projects)
 	})
 	// 新增：审核状态更新接口
-	r.POST("/review_status", func(c *gin.Context) {
+	r.POST("/mr_status", func(c *gin.Context) {
+		log.Printf("POST /mr_status called")
 		var req struct {
-			MRID         int    `json:"mr_id"`
-			ProjectID    int    `json:"project_id"`
-			IssueIndex   int    `json:"issue_index"` // 第几个风险
-			ReviewStatus string `json:"review_status"`
+			ProjectID int    `json:"project_id"`
+			MRID      int    `json:"mr_id"`
+			Status    string `json:"status"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Printf("POST /mr_status param error: %v", err)
 			c.JSON(400, gin.H{"error": "参数错误"})
 			return
 		}
-		if err := storage.UpdateReviewStatus(req.ProjectID, req.MRID, req.IssueIndex, req.ReviewStatus); err != nil {
-			c.JSON(500, gin.H{"error": "更新失败", "detail": err.Error()})
+		log.Printf("POST /mr_status param: project_id=%d, mr_id=%d, status=%s", req.ProjectID, req.MRID, req.Status)
+		if err := storage.SetReviewStatus(req.ProjectID, req.MRID, req.Status); err != nil {
+			log.Printf("POST /mr_status SetReviewStatus error: %v", err)
+			c.JSON(500, gin.H{"error": "保存失败"})
 			return
 		}
-		c.JSON(200, gin.H{"msg": "success"})
+		// 立即读取数据库最新状态
+		status, err := storage.GetReviewStatus(req.ProjectID, req.MRID)
+		log.Printf("POST /mr_status after write, db review_status=%s, err=%v", status, err)
+		c.JSON(200, gin.H{"msg": "success", "review_status": status})
 	})
 }
 
@@ -63,13 +70,13 @@ func RegisterResultRoute(r *gin.Engine, storage *Storage) {
 func GetResultsHandler(c *gin.Context, storage *Storage) {
 	pageStr := c.DefaultQuery("page", "1")
 	sizeStr := c.DefaultQuery("size", "20")
-	projectIDStr := c.Query("project_id")
+	// projectIDStr := c.Query("project_id") // Remove unused variable
 	level := c.Query("level")
 	riskType := c.Query("type")
 
 	page, _ := strconv.Atoi(pageStr)
 	size, _ := strconv.Atoi(sizeStr)
-	projectID, _ := strconv.Atoi(projectIDStr)
+	// projectID, _ := strconv.Atoi(projectIDStr) // Remove unused variable
 
 	if page < 1 {
 		page = 1
@@ -83,6 +90,11 @@ func GetResultsHandler(c *gin.Context, storage *Storage) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询结果失败"})
 		return
+	}
+	// 为每个MR补充review_status字段
+	for i := range allResults {
+		status, _ := storage.GetReviewStatus(allResults[i].ProjectID, allResults[i].MRID)
+		allResults[i].ReviewStatus = status
 	}
 
 	// 统计所有风险
@@ -120,7 +132,19 @@ func GetResultsHandler(c *gin.Context, storage *Storage) {
 	}
 
 	// 过滤
-	filteredResults := filterResults(allResults, projectID, level, riskType)
+	filteredResults := []MRAnalysisResult{}
+	for _, r := range allResults {
+		// 审核状态筛选
+		if reviewStatus := c.Query("review_status"); reviewStatus != "" && reviewStatus != "all" && r.ReviewStatus != reviewStatus {
+			continue
+		}
+		// 风险筛选：只返回有风险的MR，除非明确筛选全部
+		if len(r.Result) == 0 && (level != "" || riskType != "" || c.Query("review_status") != "" && c.Query("review_status") != "all") {
+			// 如果有风险等级、类型、审核状态等筛选条件时，过滤掉无风险MR
+			continue
+		}
+		filteredResults = append(filteredResults, r)
+	}
 
 	// 分页
 	totalFiltered := len(filteredResults)

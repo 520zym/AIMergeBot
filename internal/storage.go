@@ -18,12 +18,13 @@ func NewStorage(dbPath string) *Storage {
 	if err != nil {
 		log.Fatalf("打开sqlite失败: %v", err)
 	}
-	// 初始化表
+	// 初始化表，始终包含review_status字段
 	db.Exec(`CREATE TABLE IF NOT EXISTS analyzed_mrs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		project_id INTEGER,
 		mr_iid INTEGER,
 		status TEXT,
+		review_status TEXT DEFAULT 'pending',
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(project_id, mr_iid)
 	)`)
@@ -48,6 +49,25 @@ func (s *Storage) GetAnalyzedStatus(projectID, mrIID int) (string, error) {
 }
 func (s *Storage) SetAnalyzedStatus(projectID, mrIID int, status string) error {
 	_, err := s.db.Exec("INSERT OR REPLACE INTO analyzed_mrs(project_id, mr_iid, status, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", projectID, mrIID, status)
+	return err
+}
+
+// 设置审核状态（MR维度）
+func (s *Storage) SetReviewStatus(projectID, mrIID int, reviewStatus string) error {
+	log.Printf("SetReviewStatus: project_id=%d, mr_id=%d, review_status=%s", projectID, mrIID, reviewStatus)
+	res, err := s.db.Exec("UPDATE analyzed_mrs SET review_status=?, updated_at=CURRENT_TIMESTAMP WHERE project_id=? AND mr_iid=?", reviewStatus, projectID, mrIID)
+	if err != nil {
+		log.Printf("SetReviewStatus UPDATE error: %v", err)
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		// 插入新行，status默认pending
+		_, err = s.db.Exec("INSERT INTO analyzed_mrs(project_id, mr_iid, status, review_status, updated_at) VALUES (?, ?, 'pending', ?, CURRENT_TIMESTAMP)", projectID, mrIID, reviewStatus)
+		if err != nil {
+			log.Printf("SetReviewStatus INSERT error: %v", err)
+		}
+	}
 	return err
 }
 
@@ -124,4 +144,14 @@ func (s *Storage) UpdateReviewStatus(projectID, mrID, issueIndex int, reviewStat
 	newJson, _ := json.Marshal(result)
 	_, err := s.db.Exec("UPDATE results SET result_json=? WHERE id=?", string(newJson), id)
 	return err
+}
+
+// 获取审核状态（MR维度）
+func (s *Storage) GetReviewStatus(projectID, mrIID int) (string, error) {
+	var reviewStatus string
+	err := s.db.QueryRow("SELECT review_status FROM analyzed_mrs WHERE project_id=? AND mr_iid=?", projectID, mrIID).Scan(&reviewStatus)
+	if err == sql.ErrNoRows {
+		return "pending", nil
+	}
+	return reviewStatus, err
 }

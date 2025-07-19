@@ -125,6 +125,7 @@
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             align-items: end;
+            grid-template-columns: repeat(4, minmax(200px, 1fr)) 1fr;
         }
 
         .filter-group {
@@ -194,6 +195,7 @@
             gap: 0.8em;
             align-items: center;
             justify-content: flex-end;
+            margin-left: auto;
         }
         .btn-group .btn {
             width: 130px;
@@ -593,7 +595,7 @@
         }
 
         /* 审核状态标签样式 */
-        .review-status-tag {
+        /* .review-status-tag {
             background: #e5e7eb;
             color: #6b7280;
             border-radius: 8px;
@@ -604,8 +606,6 @@
             align-items: center;
             gap: 4px;
         }
-
-        /* 审核状态菜单样式 */
         .review-status-menu {
             position: absolute;
             z-index: 9999;
@@ -616,16 +616,18 @@
             padding: 4px 0;
             min-width: 100px;
         }
-
         .review-status-menu-item {
             padding: 6px 16px;
             cursor: pointer;
-            color: #6b7280; /* Default color */
+            color: #6b7280; 
         }
-
         .review-status-menu-item:hover {
             background-color: #f3f4f6;
-        }
+        } */
+        .mr-status-select.mr-status-pending { color: #6b7280 !important; }
+        .mr-status-select.mr-status-reviewing { color: #2563eb !important; }
+        .mr-status-select.mr-status-approved { color: #059669 !important; }
+        .mr-status-select.mr-status-rejected { color: #dc2626 !important; }
     </style>
 </head>
 <body>
@@ -648,17 +650,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         // 审核状态映射和标签渲染函数，必须放在最前面，避免未定义
-        let reviewStatusMap = {
+        /* let reviewStatusMap = {
             'pending': {text: '未审核', color: '#6b7280', bg: '#e5e7eb'},
             'reviewing': {text: '审核中', color: '#2563eb', bg: '#dbeafe'},
             'approved': {text: '已通过', color: '#059669', bg: '#d1fae5'},
             'rejected': {text: '有疑问', color: '#dc2626', bg: '#fee2e2'}
         };
-        // 修改 renderReviewStatusTag，支持传递 issueIndex
         function renderReviewStatusTag(status, issueIndex) {
             const s = reviewStatusMap[status] || reviewStatusMap['pending'];
             return `<span class="review-status-tag" data-issue-index="${issueIndex}" style="background:${s.bg};color:${s.color};border-radius:8px;padding:2px 10px;margin-left:8px;cursor:pointer;" onclick="showReviewStatusMenu(this)">${s.text} ▼</span>`;
-        }
+        } */
 
         function levelColor(level) {
             if (!level) return '#6b7280';
@@ -695,6 +696,7 @@
         let filterLevel = 'all';
         let filterType = 'all';
         let filterProject = 'all';
+        let filterReviewStatus = 'all';
         let currentPage = 1;
         let pageSize = 20;
         let totalPages = 0;
@@ -760,6 +762,16 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label for="reviewStatusFilter">审核状态</label>
+                        <select id="reviewStatusFilter">
+                            <option value="all">全部</option>
+                            <option value="pending">未审核</option>
+                            <option value="reviewing">审核中</option>
+                            <option value="approved">已通过</option>
+                            <option value="rejected">有疑问</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="pageSizeFilter">每页显示</label>
                         <select id="pageSizeFilter">
                             <option value="10">10条</option>
@@ -768,21 +780,23 @@
                             <option value="100">100条</option>
                         </select>
                     </div>
-                    <div class="filter-group btn-group">
-                        <button id="refreshBtn" class="btn btn-primary">刷新</button>
-                        <button id="exportPdfBtn" class="btn btn-outline-secondary">导出为PDF</button>
-                    </div>
+                </div>
+                <div class="filters-btn-row" style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                    <button id="refreshBtn" class="btn btn-primary">刷新</button>
+                    <button id="exportPdfBtn" class="btn btn-outline-secondary">导出为PDF</button>
                 </div>
             `;
             
             document.getElementById('projectFilter').value = filterProject;
             document.getElementById('levelFilter').value = filterLevel;
             document.getElementById('typeFilter').value = filterType;
+            document.getElementById('reviewStatusFilter').value = filterReviewStatus;
             document.getElementById('pageSizeFilter').value = pageSize;
             
             document.getElementById('projectFilter').onchange = e => { filterProject = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('levelFilter').onchange = e => { filterLevel = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('typeFilter').onchange = e => { filterType = e.target.value; currentPage = 1; fetchResults(); };
+            document.getElementById('reviewStatusFilter').onchange = e => { filterReviewStatus = e.target.value; currentPage = 1; fetchResults(); };
             document.getElementById('pageSizeFilter').onchange = e => { pageSize = parseInt(e.target.value); currentPage = 1; fetchResults(); };
             document.getElementById('refreshBtn').onclick = () => { currentPage = 1; fetchResults(); };
             document.getElementById('exportPdfBtn').onclick = function() {
@@ -889,6 +903,9 @@
             if (filterType !== 'all') {
                 params.append('type', filterType);
             }
+            if (filterReviewStatus !== 'all') {
+                params.append('review_status', filterReviewStatus);
+            }
             
             const res = await fetch(`/results?${params}`);
             const data = await res.json();
@@ -913,6 +930,7 @@
                     const filteredMRIssues = (r.result || []).filter(issue => {
                         if (filterLevel !== 'all' && issue.level !== filterLevel) return false;
                         if (filterType !== 'all' && issue.type !== filterType) return false;
+                        if (filterReviewStatus !== 'all' && r.review_status !== filterReviewStatus) return false;
                         return true;
                     });
                     
@@ -926,16 +944,17 @@
                         riskSummary = '无风险';
                     }
                     
-                    let reviewStatus = (filteredMRIssues[0] && filteredMRIssues[0].review_status) || 'pending';
-                    let reviewStatusTag = renderReviewStatusTag(reviewStatus, 0); // 假设第一个issue代表整个MR的审核状态
-                    riskSummary = riskSummary + reviewStatusTag;
+                    let reviewStatus = r.review_status || 'pending';
+                    // let reviewStatusTag = renderReviewStatusTag(reviewStatus, 0); // 假设第一个issue代表整个MR的审核状态
+                    // riskSummary = riskSummary + reviewStatusTag;
+                    riskSummary = riskSummary;
                     
                     const mrCard = document.createElement('div');
                     mrCard.className = 'mr-card';
                     mrCard.innerHTML = `
                         <div class="mr-header">
                             <div class="mr-header-main">
-                                <h3 class="mr-title">${escapeHtml(r.mr_title || '')}</h3>
+                                <h3 class="mr-title">${escapeHtml(r.mr_title || '')} <span class="risk-summary" style="margin-left:12px;vertical-align:middle;">${riskSummary}</span></h3>
                                 <div class="mr-meta">
                                     <span>📋 MR #${r.mr_id}</span>
                                     <span>👤 ${escapeHtml(r.mr_author || '')}</span>
@@ -943,7 +962,15 @@
                                     <span>📅 ${formatToBeijingTime(r.mr_created)}</span>
                                     <span>📁 ${escapeHtml(r.project_name || '')} / ${escapeHtml(r.project_path || '')}</span>
                                     <a href="${r.mr_url}" target="_blank" class="mr-link">🔗 查看 MR</a>
-                                    <span class="risk-summary">${riskSummary}</span>
+                                    <div class="mr-status-bar" style="display:inline-flex;align-items:center;margin-left:12px;">
+                                        <label style="margin-right:8px;color:#6b7280;font-size:0.95em;">审核状态:</label>
+                                        <select class="mr-status-select" style="padding:4px 12px;border-radius:6px;border:1px solid #d1d5db;font-size:1em;">
+                                            <option value="pending">未审核</option>
+                                            <option value="reviewing">审核中</option>
+                                            <option value="approved">已通过</option>
+                                            <option value="rejected">有疑问</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 ${r.mr_desc ? `<div class="mr-description">${escapeHtml(r.mr_desc)}</div>` : ''}
                             </div>
@@ -951,6 +978,25 @@
                         </div>
                         <div id="${mrId}" class="mr-details" style="display:none;"></div>
                     `;
+                    // 获取并设置审核状态
+                    const statusSelect = mrCard.querySelector('.mr-status-select');
+                    statusSelect.value = reviewStatus;
+                    statusSelect.className = 'mr-status-select mr-status-' + reviewStatus;
+                    // 设置状态选择器的交互
+                    statusSelect.addEventListener('change', function() {
+                        statusSelect.className = 'mr-status-select mr-status-' + statusSelect.value;
+                        fetch('/mr_status', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                project_id: r.project_id,
+                                mr_id: r.mr_id,
+                                status: statusSelect.value
+                            })
+                        });
+                    });
+                    // 默认色
+                    statusSelect.style.color = '#6b7280';
                     mrCard.setAttribute('data-mr-id', r.mr_id);
                     mrCard.setAttribute('data-project-id', r.project_id);
                     resultsDiv.appendChild(mrCard);
@@ -995,9 +1041,9 @@
                                     </div>
                                 `;
                                 // 在合适位置插入审核状态标签
-                                let reviewStatus = issue.review_status || 'pending';
-                                let reviewStatusTag = renderReviewStatusTag(reviewStatus, issueIdx);
-                                riskCard.innerHTML += reviewStatusTag;
+                                // let reviewStatus = issue.review_status || 'pending';
+                                // let reviewStatusTag = renderReviewStatusTag(reviewStatus, issueIdx);
+                                // riskCard.innerHTML += reviewStatusTag;
                                 fileSection.appendChild(riskCard);
                             });
                             mrDetailsDiv.appendChild(fileSection);
@@ -1076,7 +1122,7 @@
         });
 
         // 审核状态菜单弹窗
-        let currentReviewTag = null;
+        /* let currentReviewTag = null;
         function showReviewStatusMenu(el) {
             currentReviewTag = el;
             let menu = document.createElement('div');
@@ -1094,7 +1140,6 @@
             let rect = el.getBoundingClientRect();
             menu.style.left = rect.left + 'px';
             menu.style.top = (rect.bottom + window.scrollY) + 'px';
-            // 点击外部关闭
             function closeMenu(e) {
                 if (!menu.contains(e.target)) {
                     menu.remove();
@@ -1103,15 +1148,12 @@
             }
             document.addEventListener('mousedown', closeMenu);
         }
-
-        // 设置审核状态（前端演示，实际应调用API）
         function setReviewStatus(el, status) {
             let tag = currentReviewTag;
             let issueIndex = tag ? tag.getAttribute('data-issue-index') : 0;
             let card = tag.closest('.mr-card');
             let mrId = card ? card.getAttribute('data-mr-id') : null;
             let projectId = card ? card.getAttribute('data-project-id') : null;
-            // 调用API
             fetch('/review_status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1133,12 +1175,10 @@
                     alert('审核状态更新失败');
                 }
             });
-            // 关闭菜单
             let menu = el.closest('.review-status-menu');
             if (menu) menu.remove();
-            // 更新UI后清空 currentReviewTag
             currentReviewTag = null;
-        }
+        } */
     </script>
 </body>
 </html> 
