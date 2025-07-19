@@ -6,6 +6,26 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Config struct {
+	Listen string `yaml:"listen"`
+	GitLab struct {
+		Token string `yaml:"token"`
+		URL   string `yaml:"url"`
+	} `yaml:"gitlab"`
+	OpenAI struct {
+		APIKey string `yaml:"api_key"`
+		URL    string `yaml:"url"`
+		Model  string `yaml:"model"`
+	} `yaml:"openai"`
+	Projects []struct {
+		ID   int    `yaml:"id"`
+		Name string `yaml:"name"`
+	} `yaml:"projects"`
+	EnableWebhook   bool `yaml:"enable_webhook"`
+	EnableMRComment bool `yaml:"enable_mr_comment"`
+	ScanExistingMRs bool `yaml:"scan_existing_mrs"`
+}
+
 func LoadConfig(path string) (*Config, error) {
 	f, err := os.Open(path)
 	if err != nil {

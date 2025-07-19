@@ -2,288 +2,803 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>PR_Agent 安全分析</title>
+    <title>AIMergeBot 安全分析</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <style>
         :root {
-            --ant-blue: #1677ff;
-            --ant-blue-dark: #0958d9;
-            --ant-gray-bg: #f5f7fa;
-            --ant-card-bg: #fff;
-            --ant-border: #e5e6eb;
-            --ant-text-main: #222;
-            --ant-text-sub: #666;
-            --ant-danger: #ff4d4f;
-            --ant-warning: #faad14;
-            --ant-success: #52c41a;
-            --ant-shadow: 0 2px 8px #e3e8ee33;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
         }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Segoe UI', 'PingFang SC', 'Arial', sans-serif;
-            background: var(--ant-gray-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--gray-50);
             margin: 0;
             padding: 0;
+            line-height: 1.6;
+            color: var(--gray-800);
         }
-        .ant-nav {
-            background: var(--ant-blue);
-            color: #fff;
-            padding: 0.9em 0 0.9em 0;
-            text-align: left;
-            font-size: 1.25em;
-            font-weight: 600;
-            letter-spacing: 1px;
-            box-shadow: var(--ant-shadow);
-            padding-left: 2.5em;
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, #1e40af 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow-lg);
         }
-        .ant-container {
-            max-width: 1100px;
-            margin: 2.5em auto 2em auto;
-            background: var(--ant-card-bg);
-            border-radius: 10px;
-            box-shadow: var(--ant-shadow);
-            padding: 2.2em 2.5em 2.2em 2.5em;
-        }
-        @media (max-width: 700px) {
-            .ant-container { padding: 1em 0.5em; }
-        }
-        .ant-section {
-            margin-bottom: 2.2em;
-        }
-        .ant-section-title {
-            font-size: 1.13em;
-            color: var(--ant-blue);
-            font-weight: 600;
-            margin-bottom: 0.7em;
-        }
-        .ant-stats-bar {
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
             display: flex;
-            flex-wrap: wrap;
-            gap: 1.5em;
+            justify-content: space-between;
             align-items: center;
-            font-size: 1.05em;
-            margin-bottom: 1.2em;
         }
-        .ant-stats-bar span {
-            margin-right: 0.7em;
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
         }
-        .ant-filter-bar {
+
+        .header-subtitle {
+            font-size: 0.875rem;
+            opacity: 0.9;
+            margin-top: 0.25rem;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-200);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .stat-card.total .stat-number { color: var(--gray-800); }
+        .stat-card.high .stat-number { color: var(--danger); }
+        .stat-card.medium .stat-number { color: var(--warning); }
+        .stat-card.low .stat-number { color: var(--success); }
+
+        /* Filters */
+        .filters {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .filter-group {
             display: flex;
-            flex-wrap: wrap;
-            gap: 1.5em;
-            align-items: center;
-            margin-bottom: 1.2em;
+            flex-direction: column;
         }
-        .ant-filter-bar label {
-            color: #555;
-            font-size: 1em;
+
+        .filter-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
         }
-        .ant-filter-bar select, .ant-filter-bar button {
-            font-size: 1em;
-            padding: 0.3em 1.2em;
-            border-radius: 6px;
-            border: 1px solid var(--ant-border);
-            background: #f7f7f7;
-            margin-right: 1em;
-            transition: border 0.2s, box-shadow 0.2s;
+
+        .filter-group select {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            background: white;
+            color: var(--gray-800);
+            transition: all 0.2s;
         }
-        .ant-filter-bar select:focus, .ant-filter-bar button:focus {
-            border: 1.5px solid var(--ant-blue);
+
+        .filter-group select:focus {
             outline: none;
-            box-shadow: 0 0 0 2px #e6f4ff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
         }
-        .ant-filter-bar button {
-            background: var(--ant-blue);
-            color: #fff;
+
+        .btn {
+            padding: 0.5rem 1rem;
             border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
-            margin-left: 1em;
-            transition: background 0.2s;
-        }
-        .ant-filter-bar button:hover {
-            background: var(--ant-blue-dark);
-        }
-        .ant-mr-card {
-            background: #f7faff;
-            border-radius: 8px;
-            box-shadow: var(--ant-shadow);
-            padding: 1.2em 1.5em 1.2em 1.5em;
-            margin-bottom: 2em;
-            border-left: 4px solid var(--ant-blue);
-            border-right: 0;
-            border-top: 0;
-            border-bottom: 0;
-        }
-        .ant-mr-title {
-            font-size: 1.13em;
-            font-weight: 600;
-            color: var(--ant-blue);
-        }
-        .ant-mr-meta {
-            color: #888;
-            font-size: 0.97em;
-            margin: 0.3em 0 0.5em 0;
-        }
-        .ant-mr-link {
-            color: var(--ant-blue);
+            transition: all 0.2s;
             text-decoration: none;
-            font-size: 1em;
-            margin-left: 1em;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .ant-file-block {
-            margin: 1.2em 0 2em 0;
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-200);
+        }
+
+        .filter-group.btn-group {
+            display: flex;
+            flex-direction: row;
+            gap: 0.8em;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .btn-group .btn {
+            width: 130px;
+            height: 40px;
+            min-width: 0;
+            max-width: none;
+            text-align: center;
+            font-size: 1rem;
             border-radius: 6px;
-            background: #f8fafd;
-            border: 1px solid #e3e8ee;
-            box-shadow: none;
-        }
-        .ant-file-header {
-            padding: 0.6em 1.1em;
-            background: #f3f6fa;
-            border-radius: 6px 6px 0 0;
-            font-weight: 600;
-            color: var(--ant-blue);
-            font-size: 1.01em;
-            border-bottom: 1px solid #e3e8ee;
-        }
-        .ant-file-content {
-            padding: 1.1em 1.3em 1.1em 1.3em;
-        }
-        .ant-risk-card {
-            border-radius: 6px;
-            box-shadow: 0 1px 4px #f0f0f0;
-            background: #fff;
-            border-left: 5px solid var(--ant-danger);
-            margin-bottom: 1.2em;
-            padding: 1em 1.2em 1em 1.2em;
-            transition: box-shadow 0.2s;
-        }
-        .ant-risk-card.low { border-left-color: var(--ant-success); }
-        .ant-risk-card.medium { border-left-color: var(--ant-warning); }
-        .ant-risk-card.high { border-left-color: var(--ant-danger); }
-        .ant-risk-header {
+            box-sizing: border-box;
             display: flex;
             align-items: center;
-            gap: 1em;
-            font-size: 1.05em;
-            font-weight: 600;
-            margin-bottom: 0.2em;
+            justify-content: center;
+            padding: 0;
         }
-        .ant-risk-type {
-            padding: 0.1em 0.7em;
-            border-radius: 10px;
-            font-size: 0.95em;
-            background: #eaf2fb;
-            color: var(--ant-blue);
-            margin-right: 0.7em;
+        .btn-group .btn:last-child {
+            margin-right: 0;
         }
-        .ant-risk-level {
-            padding: 0.1em 0.7em;
-            border-radius: 10px;
-            font-size: 0.95em;
-            font-weight: bold;
+        @media (max-width: 900px) {
+            .btn-group {
+                flex-direction: column;
+                gap: 0.5em;
+                align-items: stretch;
+                justify-content: flex-start;
+            }
+            .btn-group .btn {
+                width: 100%;
+                height: 44px;
+                line-height: 44px;
+            }
+        }
+        .btn-outline-secondary {
+            background: #fff;
+            color: #2563eb;
+            border: 1.5px solid #d1d5db;
+            transition: background 0.2s, border 0.2s;
+        }
+        .btn-outline-secondary:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .btn-primary {
+            background: #2563eb;
             color: #fff;
-            background: var(--ant-danger);
+            border: 1.5px solid #2563eb;
+            transition: background 0.2s, border 0.2s;
         }
-        .ant-risk-level.low { background: var(--ant-success); }
-        .ant-risk-level.medium { background: var(--ant-warning); }
-        .ant-risk-level.high { background: var(--ant-danger); }
-        .ant-risk-desc {
-            color: #222;
-            margin-bottom: 0.6em;
-            font-size: 1em;
+        .btn-primary:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
         }
-        .ant-codeblock {
-            background: #f6f8fa;
-            border-radius: 5px;
-            font-size: 0.98em;
-            margin: 0.6em 0 0.8em 0;
-            padding: 0.6em 1em;
+
+        /* MR Cards */
+        .mr-card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-200);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .mr-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            background: var(--gray-50);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .mr-header-main {
+            display: flex;
+            flex-direction: column;
+        }
+        .mr-toggle {
+            background: none;
+            border: none;
+            font-size: 1.3em;
+            cursor: pointer;
+            margin-left: 1em;
+            color: var(--primary);
+            transition: color 0.2s;
+        }
+        .mr-toggle:hover {
+            color: var(--primary-hover);
+        }
+
+        .mr-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin: 0 0 0.5rem 0;
+        }
+
+        .mr-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            align-items: center;
+        }
+        
+        .mr-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .mr-link {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .mr-link:hover {
+            text-decoration: underline;
+        }
+        
+        .risk-summary {
+            background: #eaf2ff;
+            color: #2563eb;
+            padding: 0.18rem 0.7rem;
+            border-radius: 1.2em;
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-left: 0.8rem;
+            border: 1.5px solid #2563eb;
+            display: inline-flex;
+            align-items: center;
+            letter-spacing: 0.5px;
+            box-shadow: 0 1px 2px 0 #2563eb11;
+            transition: background 0.2s, border 0.2s;
+        }
+
+        .mr-description {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid var(--gray-200);
+            font-size: 0.875rem;
+            color: var(--gray-700);
+        }
+
+        /* Risk Cards */
+        .risk-card {
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .risk-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .risk-type {
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .risk-level {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .risk-level.high {
+            background: #fef2f2;
+            color: var(--danger);
+        }
+
+        .risk-level.medium {
+            background: #fffbeb;
+            color: var(--warning);
+        }
+
+        .risk-level.low {
+            background: #f0fdf4;
+            color: var(--success);
+        }
+
+        .risk-content {
+            padding: 1rem;
+        }
+
+        .risk-description {
+            margin-bottom: 1rem;
+            color: var(--gray-700);
+        }
+
+        .risk-suggestion {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .risk-suggestion strong {
+            color: var(--gray-800);
+        }
+
+        /* Code Blocks */
+        .code-block {
+            margin: 1rem 0;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+
+        .code-header {
+            background: var(--gray-100);
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .raw-code {
+            padding: 1rem;
+            background: var(--gray-50);
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            color: var(--gray-800);
+            white-space: pre !important;
+            word-wrap: normal !important;
+            word-break: normal !important;
             overflow-x: auto;
-            font-family: 'Fira Mono', 'Consolas', 'Menlo', 'Monaco', monospace;
+            margin: 0;
         }
-        .ant-risk-suggestion {
-            background: #f9fbe7;
-            border-radius: 4px;
-            padding: 0.4em 1em;
-            color: #6d7b00;
-            margin-bottom: 0.4em;
-            font-size: 0.98em;
+
+        /* Fix Suggestions */
+        .fix-suggestion {
+            margin-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+            padding-top: 1rem;
         }
-        .ant-risk-meta {
-            color: #888;
-            font-size: 0.96em;
-            margin-bottom: 0.2em;
+
+        .fix-toggle {
+            background: var(--gray-100);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        .ant-risk-context {
-            background: #f4f4f4;
-            border-radius: 4px;
-            padding: 0.4em 1em;
-            color: #555;
-            font-size: 0.96em;
+
+        .fix-toggle:hover {
+            background: var(--gray-200);
         }
-        @media (max-width: 700px) {
-            .ant-container { padding: 1em 0.5em; }
-            .ant-file-content { padding: 1em 0.5em; }
+
+        .fix-content {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .fix-markdown {
+            font-size: 0.875rem;
+            line-height: 1.6;
+            color: var(--gray-700);
+        }
+
+        .fix-markdown strong {
+            color: var(--gray-900);
+            font-weight: 600;
+        }
+
+        .fix-markdown em {
+            color: var(--warning);
+            font-style: italic;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+        }
+
+        .pagination button {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-700);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover {
+            background: var(--gray-50);
+        }
+
+        .pagination button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pagination-info {
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--gray-600);
+            font-size: 0.875rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--gray-500);
+        }
+
+        .empty-state h3 {
+            margin: 0 0 0.5rem 0;
+            color: var(--gray-700);
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--gray-600);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+                margin: 1rem auto;
+            }
+
+            .header {
+                padding: 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 0.5rem;
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .mr-meta {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        /* 移除highlight.js相关样式，避免冲突 */
+        
+        /* 基本的代码样式 */
+        .raw-code {
+            color: var(--gray-800);
+            line-height: 1.45;
+        }
+        .btn-success {
+            background: #22c55e;
+            color: #fff;
+            border: 1.5px solid #22c55e;
+            transition: background 0.2s, border 0.2s;
+        }
+        .btn-success:hover {
+            background: #16a34a;
+            border-color: #16a34a;
         }
     </style>
 </head>
 <body>
-    <div class="ant-nav">PR_Agent 安全分析</div>
-    <div class="ant-container">
-        <div class="ant-section">
-            <div class="ant-filter-bar" id="controls"></div>
-            <div class="ant-stats-bar" id="stats"></div>
+    <div class="header">
+        <div class="header-content">
+            <div>
+                <h1>AIMergeBot 安全分析</h1>
+                <div class="header-subtitle">智能代码安全风险检测与分析</div>
+            </div>
         </div>
-        <div class="ant-section" id="results">加载中...</div>
     </div>
+
+    <div class="container">
+        <div id="stats"></div>
+        <div class="filters" id="controls"></div>
+        <div id="results">加载中...</div>
+        <div id="pagination"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         function levelColor(level) {
-            if (!level) return '#888';
-            if (level === 'high') return '#ff4d4f';
-            if (level === 'medium') return '#faad14';
-            if (level === 'low') return '#52c41a';
-            return '#888';
+            if (!level) return '#6b7280';
+            if (level === 'high') return '#dc2626';
+            if (level === 'medium') return '#d97706';
+            if (level === 'low') return '#059669';
+            return '#6b7280';
         }
+
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
+        
+        function formatToBeijingTime(utcTimeStr) {
+            if (!utcTimeStr) return '';
+            try {
+                const date = new Date(utcTimeStr);
+                const beijingTime = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+                return beijingTime.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZone: 'Asia/Shanghai'
+                });
+            } catch (e) {
+                return utcTimeStr;
+            }
+        }
+        
         let filterLevel = 'all';
         let filterType = 'all';
-        function renderStats(allIssues) {
+        let currentPage = 1;
+        let pageSize = 20;
+        let totalPages = 0;
+        let totalResults = 0;
+        
+        function renderStats(stats) {
             const statsDiv = document.getElementById('stats');
-            if (!allIssues.length) { statsDiv.innerHTML = ''; return; }
-            const total = allIssues.length;
-            const high = allIssues.filter(i => i.level === 'high').length;
-            const medium = allIssues.filter(i => i.level === 'medium').length;
-            const low = allIssues.filter(i => i.level === 'low').length;
-            const types = [...new Set(allIssues.map(i => i.type))];
-            statsDiv.innerHTML = `<b>风险统计：</b> 总数: ${total}，高危: <span style='color:#ff4d4f'>${high}</span>，中危: <span style='color:#faad14'>${medium}</span>，低危: <span style='color:#52c41a'>${low}</span>，类型: ${types.join(' / ')}`;
+            if (!stats || stats.total === 0) {
+                statsDiv.innerHTML = '';
+                return;
+            }
+            statsDiv.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card total">
+                        <div class="stat-number">${stats.total}</div>
+                        <div class="stat-label">总风险数</div>
+                    </div>
+                    <div class="stat-card high">
+                        <div class="stat-number">${stats.high}</div>
+                        <div class="stat-label">高危风险</div>
+                    </div>
+                    <div class="stat-card medium">
+                        <div class="stat-number">${stats.medium}</div>
+                        <div class="stat-label">中危风险</div>
+                    </div>
+                    <div class="stat-card low">
+                        <div class="stat-number">${stats.low}</div>
+                        <div class="stat-label">低危风险</div>
+                    </div>
+                </div>
+            `;
         }
-        function renderControls(types) {
+        
+        function renderControls(types, levels) {
             const controlsDiv = document.getElementById('controls');
             controlsDiv.innerHTML = `
-                <label>风险等级筛选：</label>
-                <select id="levelFilter">
-                    <option value="all">全部</option>
-                    <option value="high">高危</option>
-                    <option value="medium">中危</option>
-                    <option value="low">低危</option>
-                </select>
-                <label style="margin-left:1em;">风险类型筛选：</label>
-                <select id="typeFilter">
-                    <option value="all">全部</option>
-                    ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
-                </select>
-                <button id="refreshBtn">刷新</button>
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label for="levelFilter">风险等级</label>
+                        <select id="levelFilter">
+                            <option value="all">全部等级</option>
+                            ${(levels || []).map(l => `<option value="${l}">${l === 'high' ? '高危' : l === 'medium' ? '中危' : l === 'low' ? '低危' : l}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="typeFilter">风险类型</label>
+                        <select id="typeFilter">
+                            <option value="all">全部类型</option>
+                            ${(types || []).map(t => `<option value="${t}">${t}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="pageSizeFilter">每页显示</label>
+                        <select id="pageSizeFilter">
+                            <option value="10">10条</option>
+                            <option value="20">20条</option>
+                            <option value="50">50条</option>
+                            <option value="100">100条</option>
+                        </select>
+                    </div>
+                    <div class="filter-group btn-group">
+                        <button id="refreshBtn" class="btn btn-primary">刷新</button>
+                        <button id="exportPdfBtn" class="btn btn-outline-secondary">导出为PDF</button>
+                    </div>
+                </div>
             `;
-            document.getElementById('levelFilter').onchange = e => { filterLevel = e.target.value; fetchResults(); };
-            document.getElementById('typeFilter').onchange = e => { filterType = e.target.value; fetchResults(); };
-            document.getElementById('refreshBtn').onclick = fetchResults;
+            
+            document.getElementById('levelFilter').value = filterLevel;
+            document.getElementById('typeFilter').value = filterType;
+            document.getElementById('pageSizeFilter').value = pageSize;
+            
+            document.getElementById('levelFilter').onchange = e => { filterLevel = e.target.value; currentPage = 1; fetchResults(); };
+            document.getElementById('typeFilter').onchange = e => { filterType = e.target.value; currentPage = 1; fetchResults(); };
+            document.getElementById('pageSizeFilter').onchange = e => { pageSize = parseInt(e.target.value); currentPage = 1; fetchResults(); };
+            document.getElementById('refreshBtn').onclick = () => { currentPage = 1; fetchResults(); };
+            document.getElementById('exportPdfBtn').onclick = function() {
+                // 展开所有MR详情
+                const detailsList = document.querySelectorAll('.mr-details');
+                detailsList.forEach(d => d.style.display = '');
+
+                // 自动展开所有智能修复建议
+                document.querySelectorAll('.fix-suggestion .fix-toggle').forEach(btn => {
+                    const content = btn.nextElementSibling;
+                    if (content && content.style.display === 'none') {
+                        btn.click();
+                    }
+                });
+
+                // 延迟500ms，确保内容渲染完成后再导出
+                setTimeout(function() {
+                    const element = document.getElementById('results');
+                    html2pdf().from(element).set({
+                        margin: 0.5,
+                        filename: '安全分析结果.pdf',
+                        html2canvas: { scale: 2 },
+                        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+                    }).save();
+                }, 500);
+            };
         }
+        
+        function renderPagination() {
+            const paginationDiv = document.getElementById('pagination');
+            if (totalPages <= 1) {
+                paginationDiv.innerHTML = '';
+                return;
+            }
+            
+            let paginationHtml = '<div class="pagination">';
+            
+            if (currentPage > 1) {
+                paginationHtml += `<button onclick="goToPage(${currentPage - 1})">上一页</button>`;
+            }
+            
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+            
+            if (startPage > 1) {
+                paginationHtml += `<button onclick="goToPage(1)">1</button>`;
+                if (startPage > 2) {
+                    paginationHtml += '<span>...</span>';
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                if (i === currentPage) {
+                    paginationHtml += `<button class="active">${i}</button>`;
+                } else {
+                    paginationHtml += `<button onclick="goToPage(${i})">${i}</button>`;
+                }
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += '<span>...</span>';
+                }
+                paginationHtml += `<button onclick="goToPage(${totalPages})">${totalPages}</button>`;
+            }
+            
+            if (currentPage < totalPages) {
+                paginationHtml += `<button onclick="goToPage(${currentPage + 1})">下一页</button>`;
+            }
+            
+            paginationHtml += '</div>';
+            paginationHtml += `<div class="pagination-info">共 ${totalResults} 条结果，第 ${currentPage} / ${totalPages} 页</div>`;
+            
+            paginationDiv.innerHTML = paginationHtml;
+        }
+        
+        function goToPage(page) {
+            currentPage = page;
+            fetchResults();
+        }
+        
         function groupByFile(issues) {
             const map = {};
             issues.forEach(i => {
@@ -293,90 +808,191 @@
             });
             return map;
         }
+
         async function fetchResults() {
-            const res = await fetch('/results');
+            const params = new URLSearchParams({
+                page: currentPage,
+                size: pageSize
+            });
+            
+            if (filterLevel !== 'all') {
+                params.append('level', filterLevel);
+            }
+            if (filterType !== 'all') {
+                params.append('type', filterType);
+            }
+            
+            const res = await fetch(`/results?${params}`);
             const data = await res.json();
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
-            let allIssues = [];
-            if (data.results && data.results.length > 0) {
-                data.results.forEach(r => {
-                    if (r.result && r.result.length > 0) allIssues = allIssues.concat(r.result);
-                });
+            
+            if (data.pagination) {
+                totalPages = data.pagination.pages;
+                currentPage = data.pagination.page;
+                totalResults = data.pagination.total;
             }
-            renderStats(allIssues);
-            renderControls([...new Set(allIssues.map(i => i.type))]);
+            renderPagination();
+            
+            // 直接用后端返回的 stats 渲染
+            renderStats(data.stats);
+            renderControls(data.all_types || [], data.all_levels || []);
+            // MR卡片渲染直接用后端分页结果data.results
             if (data.results && data.results.length > 0) {
                 data.results.forEach((r, idx) => {
-                    if (idx > 0) {
-                        const divider = document.createElement('hr');
-                        divider.style.border = 'none';
-                        divider.style.borderTop = '1.5px solid #f0f1f3';
-                        divider.style.margin = '2.2em 0 2.2em 0';
-                        resultsDiv.appendChild(divider);
-                    }
-                    // MR卡片头部
-                    const mrCard = document.createElement('div');
-                    mrCard.className = 'ant-mr-card';
-                    mrCard.innerHTML = `
-                        <div class="ant-mr-title">${escapeHtml(r.mr_title || '')}
-                            <span style="color:#888;font-size:0.95em;">（MR #${r.mr_id}，项目：${escapeHtml(r.project_name || '')} / ${escapeHtml(r.project_path || '')}）</span>
-                            <a href="${r.mr_url}" target="_blank" class="ant-mr-link">查看 MR</a>
-                        </div>
-                        <div class="ant-mr-meta">作者：${escapeHtml(r.mr_author || '')}，分支：${escapeHtml(r.mr_branch || '')}，创建时间：${escapeHtml(r.mr_created || '')}</div>
-                        <div class="ant-mr-meta">${escapeHtml(r.mr_desc || '')}</div>
-                    `;
-                    resultsDiv.appendChild(mrCard);
-                    if (!r.result || r.result.length === 0) {
-                        const noRisk = document.createElement('div');
-                        noRisk.className = 'result';
-                        noRisk.textContent = '未发现安全风险';
-                        resultsDiv.appendChild(noRisk);
-                        return;
-                    }
-                    // 分组：文件
-                    const fileMap = groupByFile(r.result.filter(issue => {
+                    const mrId = `mr-details-${r.mr_id}-${idx}`;
+                    // MR卡片内再按筛选条件过滤issues
+                    const filteredMRIssues = (r.result || []).filter(issue => {
                         if (filterLevel !== 'all' && issue.level !== filterLevel) return false;
                         if (filterType !== 'all' && issue.type !== filterType) return false;
                         return true;
-                    }));
-                    Object.keys(fileMap).forEach(file => {
-                        const fileBlock = document.createElement('div');
-                        fileBlock.className = 'ant-file-block';
-                        const fileHeader = document.createElement('div');
-                        fileHeader.className = 'ant-file-header';
-                        fileHeader.innerHTML = `${escapeHtml(file)} <span style="font-size:0.9em;color:#aaa;">（${fileMap[file].length} 个风险）</span>`;
-                        const fileContent = document.createElement('div');
-                        fileContent.className = 'ant-file-content';
-                        fileBlock.appendChild(fileHeader);
-                        fileBlock.appendChild(fileContent);
-                        fileMap[file].forEach(issue => {
-                            const card = document.createElement('div');
-                            card.className = `ant-risk-card ${issue.level || ''}`;
-                            card.innerHTML = `
-                                <div class="ant-risk-header">
-                                    <span class="ant-risk-type">${escapeHtml(issue.type || '未知风险')}</span>
-                                    <span class="ant-risk-level ${issue.level || ''}">${issue.level ? issue.level.toUpperCase() : ''}</span>
-                                </div>
-                                <div class="ant-risk-desc">${escapeHtml(issue.desc || '')}</div>
-                                <pre class="ant-codeblock"><code>${escapeHtml(issue.code || '')}</code></pre>
-                                <div class="ant-risk-suggestion">建议：${escapeHtml(issue.suggestion || '')}</div>
-                                <div class="ant-risk-meta">${issue.file ? `<a href="${r.gitlab_base_url}/${r.project_path}/-/merge_requests/${r.mr_id}/diffs?view=parallel" target="_blank">文件: ${escapeHtml(issue.file)}</a>` : ''}</div>
-                                <div class="ant-risk-context">${issue.context ? escapeHtml(issue.context) : ''}</div>
-                            `;
-                            fileContent.appendChild(card);
-                        });
-                        resultsDiv.appendChild(fileBlock);
                     });
+                    
+                    // 生成风险摘要
+                    let riskSummary = '';
+                    if (filteredMRIssues.length > 0) {
+                        const riskTypes = [...new Set(filteredMRIssues.map(issue => issue.type))];
+                        const riskLevels = [...new Set(filteredMRIssues.map(issue => issue.level))];
+                        riskSummary = `${riskTypes.join(', ')} (${riskLevels.join(', ')})`;
+                    } else {
+                        riskSummary = '无风险';
+                    }
+                    
+                    const mrCard = document.createElement('div');
+                    mrCard.className = 'mr-card';
+                    mrCard.innerHTML = `
+                        <div class="mr-header">
+                            <div class="mr-header-main">
+                                <h3 class="mr-title">${escapeHtml(r.mr_title || '')}</h3>
+                                <div class="mr-meta">
+                                    <span>📋 MR #${r.mr_id}</span>
+                                    <span>👤 ${escapeHtml(r.mr_author || '')}</span>
+                                    <span>🌿 ${escapeHtml(r.mr_branch || '')}</span>
+                                    <span>📅 ${formatToBeijingTime(r.mr_created)}</span>
+                                    <span>📁 ${escapeHtml(r.project_name || '')} / ${escapeHtml(r.project_path || '')}</span>
+                                    <a href="${r.mr_url}" target="_blank" class="mr-link">🔗 查看 MR</a>
+                                    <span class="risk-summary">${riskSummary}</span>
+                                </div>
+                                ${r.mr_desc ? `<div class="mr-description">${escapeHtml(r.mr_desc)}</div>` : ''}
+                            </div>
+                            <button class="mr-toggle" onclick="toggleMRDetails('${mrId}', this)">▼</button>
+                        </div>
+                        <div id="${mrId}" class="mr-details" style="display:none;"></div>
+                    `;
+                    resultsDiv.appendChild(mrCard);
+                    // 渲染详细内容到mr-details
+                    const mrDetailsDiv = document.getElementById(mrId);
+                    // 判断无风险
+                    if (filteredMRIssues.length === 0) {
+                        mrDetailsDiv.innerHTML = `<div class="empty-state"><h3>✅ 未发现安全风险</h3><p>此合并请求的代码符合安全标准</p></div>`;
+                    } else {
+                        const fileMap = groupByFile(filteredMRIssues);
+                        Object.keys(fileMap).forEach(file => {
+                            const fileSection = document.createElement('div');
+                            fileSection.style.marginBottom = '1.5rem';
+                            const fileHeader = document.createElement('h4');
+                            fileHeader.style.margin = '0 0 1rem 0';
+                            fileHeader.style.color = 'var(--gray-700)';
+                            fileHeader.style.fontSize = '1rem';
+                            fileHeader.innerHTML = `📄 ${escapeHtml(file)} <span style="color: var(--gray-500); font-weight: normal;">(${fileMap[file].length} 个风险)</span>`;
+                            fileSection.appendChild(fileHeader);
+                            fileMap[file].forEach(issue => {
+                                const riskCard = document.createElement('div');
+                                riskCard.className = 'risk-card';
+                                riskCard.innerHTML = `
+                                    <div class="risk-header">
+                                        <div class="risk-type">${escapeHtml(issue.type || '未知风险')}</div>
+                                        <div class="risk-level ${issue.level || ''}">${issue.level ? issue.level.toUpperCase() : ''}</div>
+                                    </div>
+                                    <div class="risk-content">
+                                        <div class="risk-description">${escapeHtml(issue.desc || '')}</div>
+                                        ${issue.code ? `<div class="code-block"><div class="code-header">${escapeHtml(issue.type || '代码')}</div><pre class="raw-code">${escapeHtml(issue.code)}</pre></div>` : ''}
+                                        <div class="risk-suggestion"><strong>建议：</strong>${escapeHtml(issue.suggestion || '')}</div>
+                                        ${issue.context ? `<div class="risk-suggestion"><strong>上下文：</strong>${escapeHtml(issue.context)}</div>` : ''}
+                                        ${issue.fix_suggestion ? `
+                                        <div class="fix-suggestion">
+                                            <button onclick="toggleFixSuggestion(this)" class="fix-toggle">🔧 查看智能修复建议</button>
+                                            <div class="fix-content" style="display: none;">
+                                                <div class="fix-markdown">${formatMarkdown(issue.fix_suggestion)}</div>
+                                            </div>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                                fileSection.appendChild(riskCard);
+                            });
+                            mrDetailsDiv.appendChild(fileSection);
+                        });
+                    }
                 });
-                setTimeout(() => {
-                    document.querySelectorAll('pre.ant-codeblock code').forEach(block => { window.hljs && window.hljs.highlightElement(block); });
-                }, 100);
             } else {
-                resultsDiv.textContent = '暂无分析结果';
+                resultsDiv.innerHTML = `
+                    <div class="empty-state">
+                        <h3>📭 暂无分析结果</h3>
+                        <p>还没有扫描到任何合并请求</p>
+                    </div>
+                `;
             }
         }
+        
+        function formatMarkdown(text) {
+            if (!text) return '';
+            
+            let processedText = text;
+            
+            const codeBlocks = [];
+            processedText = processedText.replace(/```go\n([\s\S]*?)```/g, function(match, code) {
+                codeBlocks.push({ type: 'go', code: code });
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+            processedText = processedText.replace(/```([\s\S]*?)```/g, function(match, code) {
+                codeBlocks.push({ type: 'code', code: code });
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+            
+            processedText = processedText
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+            
+            codeBlocks.forEach((block, index) => {
+                const placeholder = `__CODE_BLOCK_${index}__`;
+                const codeHtml = '<div class="code-block"><div class="code-header">' + 
+                    (block.type === 'go' ? 'Go代码' : '代码') + 
+                    '</div><pre class="raw-code">' + escapeHtml(block.code) + '</pre></div>';
+                processedText = processedText.replace(placeholder, codeHtml);
+            });
+            
+            return processedText;
+        }
+        
+        function toggleFixSuggestion(button) {
+            const content = button.nextElementSibling;
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                button.textContent = '🔧 隐藏智能修复建议';
+            } else {
+                content.style.display = 'none';
+                button.textContent = '🔧 查看智能修复建议';
+            }
+        }
+
+        function toggleMRDetails(id, btn) {
+            const details = document.getElementById(id);
+            if (details.style.display === 'none') {
+                details.style.display = '';
+                btn.textContent = '▲';
+            } else {
+                details.style.display = 'none';
+                btn.textContent = '▼';
+            }
+        }
+        
         fetchResults();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // The exportPdfBtn event listener is now handled within renderControls
+        });
     </script>
 </body>
 </html> 

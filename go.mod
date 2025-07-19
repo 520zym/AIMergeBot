@@ -3,11 +3,11 @@ module pr_agent
 go 1.21
 
 require (
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/sashabaranov/go-openai v1.40.5
 	github.com/xanzy/go-gitlab v0.90.0
 	gopkg.in/yaml.v3 v3.0.1
-	github.com/sourcegraph/go-diff v1.2.0
 )
 
 require (
@@ -42,3 +42,5 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 )
+
+require github.com/mattn/go-sqlite3 v1.14.20

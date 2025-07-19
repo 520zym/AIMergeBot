@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -80,6 +81,70 @@ PR 代码差异：
 		}
 	}
 	return issues, nil
+}
+
+func generateFixSuggestion(apiKey, baseURL, model string, issue SecurityIssue) (string, error) {
+	var client *openai.Client
+	if baseURL != "" {
+		cfg := openai.DefaultConfig(apiKey)
+		cfg.BaseURL = baseURL
+		client = openai.NewClientWithConfig(cfg)
+	} else {
+		client = openai.NewClient(apiKey)
+	}
+	if model == "" {
+		model = openai.GPT3Dot5Turbo
+	}
+
+	// 修改后的prompt，要求AI自动识别代码语言
+	prompt := fmt.Sprintf(`你是代码安全专家，请基于以下安全问题生成具体的修复代码：
+
+【安全问题详情】
+- 类型: %s
+- 描述: %s
+- 风险等级: %s
+- 问题代码: %s
+- 上下文: %s
+
+【要求】
+1. 提供修复后的完整代码片段，代码块请用正确的语言标注（如go、python、js、java、c等），不要写死为go
+2. 说明修复原理和思路
+3. 提供测试建议
+4. 代码风格应符合该语言最佳实践
+
+【输出格式】
+请按以下格式输出：
+
+**修复代码：**
+`+"```"+`(请自动识别并填写代码语言，如go、python、js、java、c等)
+// 修复后的代码
+`+"```"+`
+
+**修复说明：**
+详细说明修复原理和思路
+
+**测试建议：**
+提供测试用例和验证方法
+
+**注意事项：**
+其他需要注意的点
+
+请开始生成修复建议：`, issue.Type, issue.Desc, issue.Level, issue.Code, issue.Context)
+
+	resp, err := client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
+		Model: model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleUser, Content: prompt},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(resp.Choices) > 0 {
+		return resp.Choices[0].Message.Content, nil
+	}
+	return "", fmt.Errorf("AI未返回修复建议")
 }
 
 func trimCodeBlock(s string) string {

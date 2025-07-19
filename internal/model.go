@@ -5,15 +5,6 @@ import (
 	"strings"
 )
 
-type Config struct {
-	Listen        string    `yaml:"listen"`
-	GitLab        GitLab    `yaml:"gitlab"`
-	OpenAI        OpenAI    `yaml:"openai"`
-	Projects      []Project `yaml:"projects"`
-	EnablePolling bool      `yaml:"enable_polling"`
-	EnableWebhook bool      `yaml:"enable_webhook"`
-}
-
 type GitLab struct {
 	Token string `yaml:"token"`
 	URL   string `yaml:"url"`
@@ -31,13 +22,14 @@ type Project struct {
 }
 
 type SecurityIssue struct {
-	Type       string `json:"type"`
-	Desc       string `json:"desc"`
-	Code       string `json:"code"`
-	Suggestion string `json:"suggestion"`
-	File       string `json:"file"`
-	Level      string `json:"level"` // high/medium/low
-	Context    string `json:"context"` // 相关上下文
+	Type          string `json:"type"`
+	Desc          string `json:"desc"`
+	Code          string `json:"code"`
+	Suggestion    string `json:"suggestion"`
+	File          string `json:"file"`
+	Level         string `json:"level"`          // high/medium/low
+	Context       string `json:"context"`        // 相关上下文
+	FixSuggestion string `json:"fix_suggestion"` // AI生成的修复代码
 }
 
 func (s *SecurityIssue) UnmarshalJSON(data []byte) error {
