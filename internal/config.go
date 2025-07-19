@@ -25,6 +25,7 @@ type Config struct {
 	EnableWebhook   bool `yaml:"enable_webhook"`
 	EnableMRComment bool `yaml:"enable_mr_comment"`
 	ScanExistingMRs bool `yaml:"scan_existing_mrs"`
+	EnablePolling   bool `yaml:"enable_polling"`
 }
 
 func LoadConfig(path string) (*Config, error) {

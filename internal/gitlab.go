@@ -84,6 +84,21 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 	initialized := false
 	for {
 		cfg := globalConfig.Load().(*Config)
+		if !cfg.EnablePolling {
+			log.Println("[AIMergeBot] EnablePolling=false，跳过本轮定时轮询，10秒后重试……")
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		log.Printf("[AIMergeBot] 进入定时轮询扫描循环 | 时间: %s | 配置项目数: %d | 项目: [%s] | ScanExistingMRs: %v | EnableWebhook: %v", time.Now().Format("2006-01-02 15:04:05"), len(cfg.Projects), func() string {
+			var s string
+			for i, p := range cfg.Projects {
+				if i > 0 {
+					s += ", "
+				}
+				s += fmt.Sprintf("%d:%s", p.ID, p.Name)
+			}
+			return s
+		}(), cfg.ScanExistingMRs, cfg.EnableWebhook)
 		if git == nil || cfg.GitLab.Token != lastToken || cfg.GitLab.URL != lastURL {
 			var err error
 			git, err = gitlab.NewClient(cfg.GitLab.Token, gitlab.WithBaseURL(cfg.GitLab.URL+"/api/v4"))
