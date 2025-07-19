@@ -46,6 +46,10 @@ func main() {
 	internal.RegisterResultRoute(r, storage) // 注册 /results 路由
 	r.POST("/webhook", func(c *gin.Context) {
 		cfg := globalConfig.Load().(*internal.Config)
+		if !cfg.EnableWebhook {
+			c.JSON(403, gin.H{"error": "Webhook 功能已关闭 (EnableWebhook=false)"})
+			return
+		}
 		internal.WebhookHandler(cfg, storage)(c)
 	})
 	r.Static("/static", "./web")
