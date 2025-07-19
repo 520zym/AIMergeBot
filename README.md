@@ -30,19 +30,32 @@ go mod tidy
 
 ### 3. 配置 `config.yaml`
 ```yaml
-listen: ":8080"
+# AIMergeBot 配置
+
+# 监听端口，格式如 :8080
+listen: ":8080"  # 监听的 HTTP 服务端口
+
 gitlab:
-  token: "<your-gitlab-token>"
-  url: "https://gitlab.com"
+  token: "xxxxxxxxxxxxxxxxxxxxx"  # GitLab 访问 Token，需有项目读权限
+  url: "https://gitlab.com"           # GitLab 实例地址，支持自建/私有
+
 openai:
-  api_key: "<your-openai-key>"
-  url: "https://api.openai.com/v1"
-  model: "gpt-3.5-turbo"
+  api_key: "sk-xxxxxxxxxxxxxxxxxxxxx"  # OpenAI 或兼容大模型 API Key
+  url: "https://api.openai.com/v1"                                 # OpenAI API 地址，可自定义
+  model: "gpt-4o-mini"                                           # 使用的大模型名称
+
 projects:
-  - id: 123456
-    name: "your-group/your-project"
+  - id: 12345678           # GitLab 项目 ID（数字），可在项目设置页面底部查看
+    name: "group/project" # GitLab 项目名称（group/project 格式），仅用于展示
+
+# 是否启用主动轮询模式（定时扫描所有 MR）
 enable_polling: true
+# 是否启用 Webhook 模式（推荐，实时响应 MR 事件）
 enable_webhook: true
+# 是否自动在 MR 下添加安全审查评论
+enable_mr_comment: true
+# 是否全量扫描历史 MR（true=全量，false=只扫新/增量 MR）
+scan_existing_mrs: true  # true=全量扫描，false=只扫增量MR
 ```
 - `id` 为项目数字ID（见 GitLab 项目设置）
 - `enable_polling` 主动轮询，`enable_webhook` 支持 Webhook
