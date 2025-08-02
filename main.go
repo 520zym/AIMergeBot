@@ -38,6 +38,11 @@ func main() {
 	}
 	globalConfig.Store(cfg)
 	go watchConfigChanges("config.yaml")
+	
+	// MCP功能现在基于GitLab API，不需要系统依赖检查
+	if cfg.MCP.Enabled {
+		log.Printf("MCP功能已启用，使用GitLab API")
+	}
 
 	// 初始化SQLite存储
 	storage := internal.NewStorage("pr_agent.db")
@@ -49,7 +54,7 @@ func main() {
 		c.Set("config", cfg)
 		c.Next()
 	})
-	internal.RegisterResultRoute(r, storage) // 注册 /results 路由
+	internal.RegisterResultRoute(r, storage, &globalConfig) // 注册 /results 路由
 	r.POST("/webhook", func(c *gin.Context) {
 		cfg := globalConfig.Load().(*internal.Config)
 		if !cfg.EnableWebhook {
@@ -58,8 +63,11 @@ func main() {
 		}
 		internal.WebhookHandler(cfg, storage)(c)
 	})
+	
+	// 静态文件路由放在API路由之后
 	r.Static("/static", "./web")
 	r.StaticFile("/", "./web/index.html")
+	r.StaticFile("/react_audit.html", "./web/react_audit.html")
 
 	go internal.StartPollingWithDynamicConfig(&globalConfig, storage) // 启动主动轮询 goroutine
 

@@ -671,7 +671,12 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
         }
         
         function formatToBeijingTime(utcTimeStr) {
@@ -962,6 +967,8 @@
                                     <span>📅 ${formatToBeijingTime(r.mr_created)}</span>
                                     <span>📁 ${escapeHtml(r.project_name || '')} / ${escapeHtml(r.project_path || '')}</span>
                                     <a href="${r.mr_url}" target="_blank" class="mr-link">🔗 查看 MR</a>
+                                    <a href="/react_audit.html?project_id=${r.project_id}&mr_id=${r.mr_id}" target="_blank" class="mr-link">🧠 ReAct详情</a>
+                                    <button onclick="reanalyzeMR(${r.project_id}, ${r.mr_id})" class="mr-link" style="background:none;border:none;cursor:pointer;color:#2563eb;text-decoration:underline;">🔄 重新分析</button>
                                     <div class="mr-status-bar" style="display:inline-flex;align-items:center;margin-left:12px;">
                                         <label style="margin-right:8px;color:#6b7280;font-size:0.95em;">审核状态:</label>
                                         <select class="mr-status-select" style="padding:4px 12px;border-radius:6px;border:1px solid #d1d5db;font-size:1em;">
@@ -1063,9 +1070,11 @@
         function formatMarkdown(text) {
             if (!text) return '';
             
-            let processedText = text;
+            // 首先对整个文本进行HTML转义，防止XSS攻击
+            let processedText = escapeHtml(text);
             
             const codeBlocks = [];
+            // 处理代码块，但需要重新匹配转义后的内容
             processedText = processedText.replace(/```go\n([\s\S]*?)```/g, function(match, code) {
                 codeBlocks.push({ type: 'go', code: code });
                 return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
@@ -1074,19 +1083,24 @@
                 codeBlocks.push({ type: 'code', code: code });
                 return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
             });
+            
             // 修复多余换行：去除开头和结尾的换行，避免多余空行
             processedText = processedText.trim();
+            
+            // 处理markdown语法，但内容已经转义，所以安全
             processedText = processedText
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
                 // 连续2个及以上换行只保留一个<br>
                 .replace(/\n{2,}/g, '<br>')
                 .replace(/\n/g, '<br>');
+                
+            // 恢复代码块，代码内容已经转义
             codeBlocks.forEach((block, index) => {
                 const placeholder = `__CODE_BLOCK_${index}__`;
                 const codeHtml = '<div class="code-block"><div class="code-header">' + 
                     (block.type ? block.type + '代码' : '代码') + 
-                    '</div><pre class="raw-code">' + escapeHtml(block.code) + '</pre></div>';
+                    '</div><pre class="raw-code">' + block.code + '</pre></div>';
                 processedText = processedText.replace(placeholder, codeHtml);
             });
             return processedText;
@@ -1111,6 +1125,36 @@
             } else {
                 details.style.display = 'none';
                 btn.textContent = '▼';
+            }
+        }
+        
+        async function reanalyzeMR(projectId, mrId) {
+            if (!confirm('确定要重新分析这个MR吗？这将使用ReAct模式进行深度分析。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/reanalyze_mr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        mr_id: mrId
+                    })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert('重新分析已触发，请稍后查看结果。');
+                    // 刷新页面
+                    setTimeout(() => {
+                        fetchResults();
+                    }, 2000);
+                } else {
+                    alert('重新分析失败: ' + result.error);
+                }
+            } catch (error) {
+                alert('重新分析失败: ' + error.message);
             }
         }
         

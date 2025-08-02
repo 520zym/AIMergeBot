@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"sync/atomic"
@@ -197,20 +198,78 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 					log.Printf("获取项目详情失败: %v", err)
 					continue
 				}
-				issues, err := AnalyzeDiffWithOpenAI(cfg.OpenAI.APIKey, diff, cfg.OpenAI.URL, cfg.OpenAI.Model)
-				if err != nil {
-					log.Printf("AI 分析失败: %v", err)
-					continue
+				// 7. AI 分析 - 根据配置选择方法
+				var issues []SecurityIssue
+				var reactResult *ReActAuditResult
+				
+				// 检查是否启用ReAct审计
+				if cfg.ReAct.Enabled && cfg.MCP.Enabled {
+					// 使用ReAct方法
+					projectInfo := map[string]interface{}{
+						"project_id":   p.ID,
+						"project_name": project.Name,
+						"branch":       mrDetail.SourceBranch,
+					}
+					
+					// 创建支持GitLab API的ReAct审计器
+					auditor := NewReActAuditorWithGitLab(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, p.ID)
+					
+					// 进行ReAct审计（不需要克隆仓库）
+					reactResult, err = auditor.AuditWithReAct(diff, projectInfo)
+					if err != nil {
+						log.Printf("ReAct审计失败，回退到传统方法: %v", err)
+						// 回退到传统方法
+						issues, err = AnalyzeDiffWithOpenAI(cfg.OpenAI.APIKey, diff, cfg.OpenAI.URL, cfg.OpenAI.Model)
+						if err != nil {
+							log.Printf("AI 分析失败: %v", err)
+							continue
+						}
+					} else {
+						// 使用ReAct结果
+						issues = reactResult.Issues
+						log.Printf("ReAct审计完成，步骤数: %d", len(reactResult.Steps))
+						
+						// 保存ReAct审计结果
+						if err := storage.SaveReActAuditResult(p.ID, mr.IID, reactResult); err != nil {
+							log.Printf("保存ReAct审计结果失败: %v", err)
+						}
+					}
+				} else {
+					// 使用传统方法
+					issues, err = AnalyzeDiffWithOpenAI(cfg.OpenAI.APIKey, diff, cfg.OpenAI.URL, cfg.OpenAI.Model)
+					if err != nil {
+						log.Printf("AI 分析失败: %v", err)
+						continue
+					}
 				}
 
-				// 为每个安全问题生成修复建议
-				for i := range issues {
-					if fixSuggestion, err := generateFixSuggestion(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.OpenAI.Model, issues[i]); err == nil {
-						issues[i].FixSuggestion = fixSuggestion
-						log.Printf("已为问题 %d 生成修复建议", i+1)
-					} else {
-						log.Printf("生成修复建议失败: %v", err)
-						issues[i].FixSuggestion = "修复建议生成失败，请手动处理"
+				// 根据模式决定是否生成修复建议
+				if cfg.ReAct.Enabled && cfg.MCP.Enabled && reactResult != nil {
+					// ReAct模式：使用ReAct生成的建议，不重复生成
+					log.Printf("ReAct模式：使用ReAct生成的修复建议，跳过重复生成")
+					
+					// 将ReAct的整体建议添加到每个问题的上下文中
+					if len(reactResult.Recommendations) > 0 {
+						recommendationsText := "整体修复建议：\n" + strings.Join(reactResult.Recommendations, "\n")
+						for i := range issues {
+							if issues[i].Context == "" {
+								issues[i].Context = recommendationsText
+							} else {
+								issues[i].Context = issues[i].Context + "\n\n" + recommendationsText
+							}
+						}
+					}
+				} else {
+					// 普通模式：为每个安全问题生成修复建议
+					log.Printf("普通模式：为每个问题生成修复建议")
+					for i := range issues {
+						if fixSuggestion, err := generateFixSuggestion(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.OpenAI.Model, issues[i]); err == nil {
+							issues[i].FixSuggestion = fixSuggestion
+							log.Printf("已为问题 %d 生成修复建议", i+1)
+						} else {
+							log.Printf("生成修复建议失败: %v", err)
+							issues[i].FixSuggestion = "修复建议生成失败，请手动处理"
+						}
 					}
 				}
 

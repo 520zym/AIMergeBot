@@ -27,6 +27,22 @@ type Config struct {
 	ScanExistingMRs     bool     `yaml:"scan_existing_mrs"`
 	EnablePolling       bool     `yaml:"enable_polling"`
 	WhitelistExtensions []string `yaml:"whitelist_extensions"`
+	MCP                 MCPConfig `yaml:"mcp"`
+	ReAct               ReActConfig `yaml:"react"`
+}
+
+type MCPConfig struct {
+	Enabled       bool   `yaml:"enabled"`
+	TempRepoPath  string `yaml:"temp_repo_path"`
+	MaxSteps      int    `yaml:"max_steps"`
+	VerboseLogging bool  `yaml:"verbose_logging"`
+}
+
+type ReActConfig struct {
+	Enabled     bool    `yaml:"enabled"`
+	Model       string  `yaml:"model"`
+	Temperature float64 `yaml:"temperature"`
+	MaxRetries  int     `yaml:"max_retries"`
 }
 
 func LoadConfig(path string) (*Config, error) {

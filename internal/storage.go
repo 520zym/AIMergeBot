@@ -35,6 +35,16 @@ func NewStorage(dbPath string) *Storage {
 		result_json TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`)
+	
+	// 新增ReAct审计结果表
+	db.Exec(`CREATE TABLE IF NOT EXISTS react_audit_results (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id INTEGER,
+		mr_iid INTEGER,
+		react_result_json TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(project_id, mr_iid)
+	)`)
 	return &Storage{db: db}
 }
 
@@ -154,4 +164,34 @@ func (s *Storage) GetReviewStatus(projectID, mrIID int) (string, error) {
 		return "pending", nil
 	}
 	return reviewStatus, err
+}
+
+// ReAct审计结果相关方法
+func (s *Storage) SaveReActAuditResult(projectID, mrIID int, result *ReActAuditResult) error {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("序列化ReAct结果失败: %v", err)
+	}
+	
+	_, err = s.db.Exec("INSERT OR REPLACE INTO react_audit_results(project_id, mr_iid, react_result_json, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)", 
+		projectID, mrIID, string(data))
+	return err
+}
+
+func (s *Storage) GetReActAuditResult(projectID, mrIID int) (*ReActAuditResult, error) {
+	var jsonStr string
+	err := s.db.QueryRow("SELECT react_result_json FROM react_audit_results WHERE project_id=? AND mr_iid=?", projectID, mrIID).Scan(&jsonStr)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("未找到ReAct审计结果")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询ReAct审计结果失败: %v", err)
+	}
+	
+	var result ReActAuditResult
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("反序列化ReAct结果失败: %v", err)
+	}
+	
+	return &result, nil
 }

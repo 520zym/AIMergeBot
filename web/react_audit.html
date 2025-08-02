@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>ReAct审计详情 - AIMergeBot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .back-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .step {
+            border-left: 4px solid #2563eb;
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        .step-number {
+            background: #2563eb;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .thought {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .action {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .observation {
+            background: #d1fae5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ReAct审计详情</h1>
+            <a href="/" class="back-btn">← 返回首页</a>
+        </div>
+        
+        <div id="loading" class="loading">加载中...</div>
+        <div id="content" style="display: none;"></div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // HTML转义函数
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        }
+
+        async function loadReActAuditResult() {
+            const params = new URLSearchParams(window.location.search);
+            const projectId = params.get('project_id');
+            const mrId = params.get('mr_id');
+            
+            if (!projectId || !mrId) {
+                showError('缺少参数：project_id 和 mr_id');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/react_audit/${projectId}/${mrId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+                let html = '';
+                
+                // 渲染步骤
+                if (data.steps && data.steps.length > 0) {
+                    html += '<div class="card"><h2>推理步骤</h2>';
+                    data.steps.forEach((step, index) => {
+                        html += `
+                            <div class="step">
+                                <div><span class="step-number">${index + 1}</span>推理步骤 ${index + 1}</div>
+                                <div class="thought"><strong>思考：</strong>${escapeHtml(step.thought || '')}</div>
+                                ${step.action ? `<div class="action"><strong>工具调用：</strong>${escapeHtml(JSON.stringify({action: step.action, arguments: step.action_args}, null, 2))}</div>` : ''}
+                                ${step.observation ? `<div class="observation"><strong>观察结果：</strong>${escapeHtml(step.observation)}</div>` : ''}
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                // 渲染最终答案
+                if (data.final_answer) {
+                    html += `<div class="card"><h2>最终分析结果</h2><div class="thought">${escapeHtml(data.final_answer)}</div></div>`;
+                }
+
+                // 渲染整体风险等级
+                if (data.risk_level) {
+                    html += `<div class="card"><h2>整体风险评估</h2><div class="thought"><strong>风险等级：</strong>${escapeHtml(data.risk_level)}</div></div>`;
+                }
+
+                // 渲染修复建议
+                if (data.recommendations && data.recommendations.length > 0) {
+                    html += '<div class="card"><h2>修复建议</h2>';
+                    data.recommendations.forEach((recommendation, index) => {
+                        html += `
+                            <div class="step">
+                                <div><span class="step-number">${index + 1}</span>建议 ${index + 1}</div>
+                                <div class="thought">${escapeHtml(recommendation)}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                // 渲染安全问题
+                if (data.issues && data.issues.length > 0) {
+                    html += '<div class="card"><h2>安全问题</h2>';
+                    data.issues.forEach((issue, index) => {
+                        html += `
+                            <div class="step">
+                                <div><span class="step-number">${index + 1}</span>${escapeHtml(issue.type || '未知风险')}</div>
+                                <div class="thought"><strong>描述：</strong>${escapeHtml(issue.desc || '')}</div>
+                                <div class="thought"><strong>建议：</strong>${escapeHtml(issue.suggestion || '')}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                document.getElementById('content').innerHTML = html;
+
+            } catch (error) {
+                showError('加载失败: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+        }
+
+        document.addEventListener('DOMContentLoaded', loadReActAuditResult);
+    </script>
+</body>
+</html> 
