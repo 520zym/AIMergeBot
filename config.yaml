@@ -26,3 +26,25 @@ enable_mr_comment: true
 scan_existing_mrs: true  # true=全量扫描，false=只扫增量MR
 # 检测文件白名单，命中这些扩展名的文件将不进行检测
 whitelist_extensions: ["txt", "md", "xlsx", "xls", "csv","zip"]
+
+
+# MCP和ReAct配置
+mcp:
+  # 是否启用MCP功能
+  enabled: true
+  # 临时仓库存储路径（可选，默认使用系统临时目录）
+  temp_repo_path: ""
+  # 最大推理步骤数
+  max_steps: 10
+  # 是否启用详细日志
+  verbose_logging: true
+
+react:
+  # 是否启用ReAct审计（替代传统AI分析）
+  enabled: true
+  # ReAct模型配置
+  model: "gpt-4o-mini"
+  # 温度参数（0.0-1.0）
+  temperature: 0.1
+  # 最大重试次数
+  max_retries: 3
