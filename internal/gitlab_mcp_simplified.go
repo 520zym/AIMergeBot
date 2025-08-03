@@ -45,6 +45,27 @@ var SimplifiedGitLabMCPTools = []GitLabMCPTool{
 		},
 	},
 	{
+		Name:        "gitlab_project_structure",
+		Description: "获取GitLab仓库的完整项目结构，包括所有文件和目录，用于了解项目组织架构",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"ref": map[string]interface{}{
+					"type":        "string",
+					"description": "分支或提交引用（可选，默认为默认分支）",
+				},
+				"include_content": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含文件内容预览（可选，默认false）",
+				},
+				"file_type_filter": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（如go、py、js等，可选）",
+				},
+			},
+		},
+	},
+	{
 		Name:        "gitlab_search_code",
 		Description: "在GitLab仓库中搜索指定的文本或模式，用于查找相关代码、函数调用、变量使用等",
 		InputSchema: map[string]interface{}{
@@ -60,6 +81,49 @@ var SimplifiedGitLabMCPTools = []GitLabMCPTool{
 				},
 			},
 			"required": []string{"query"},
+		},
+	},
+	{
+		Name:        "gitlab_global_search",
+		Description: "全局搜索功能，支持多文件、多模式、跨文件搜索，用于深度代码分析",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"search_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "搜索模式列表，支持多个关键词同时搜索",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"file_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "文件模式过滤（如*.go、*.py等）",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"exclude_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "排除的文件模式（如*.test.go、vendor/*等）",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"case_sensitive": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否区分大小写（可选，默认false）",
+				},
+				"include_context": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含上下文行（可选，默认true）",
+				},
+				"context_lines": map[string]interface{}{
+					"type":        "integer",
+					"description": "上下文行数（可选，默认3行）",
+				},
+			},
+			"required": []string{"search_patterns"},
 		},
 	},
 	{
@@ -155,8 +219,12 @@ func SimplifiedGitLabMCPExecutor(call GitLabMCPCall, git *gitlab.Client, project
 		return executeGitLabFileContent(call.Arguments, git, projectID)
 	case "gitlab_file_info":
 		return executeGitLabFileInfo(call.Arguments, git, projectID)
+	case "gitlab_project_structure":
+		return executeGitLabProjectStructure(call.Arguments, git, projectID)
 	case "gitlab_search_code":
 		return executeGitLabSearchCode(call.Arguments, git, projectID)
+	case "gitlab_global_search":
+		return executeGitLabGlobalSearch(call.Arguments, git, projectID)
 	case "gitlab_context_analysis":
 		return executeGitLabContextAnalysis(call.Arguments, git, projectID)
 	case "gitlab_function_analysis":

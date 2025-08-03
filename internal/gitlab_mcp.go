@@ -67,6 +67,27 @@ var GitLabMCPTools = []GitLabMCPTool{
 		},
 	},
 	{
+		Name:        "gitlab_project_structure",
+		Description: "获取GitLab仓库的完整项目结构，包括所有文件和目录，用于了解项目组织架构和代码组织",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"ref": map[string]interface{}{
+					"type":        "string",
+					"description": "分支或提交引用（可选，默认为默认分支）",
+				},
+				"include_content": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含文件内容预览（可选，默认false）",
+				},
+				"file_type_filter": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（如go、py、js等，可选）",
+				},
+			},
+		},
+	},
+	{
 		Name:        "gitlab_search_code",
 		Description: "在GitLab仓库中搜索指定的文本或模式，用于查找相关函数调用、变量使用、安全模式等",
 		InputSchema: map[string]interface{}{
@@ -82,6 +103,49 @@ var GitLabMCPTools = []GitLabMCPTool{
 				},
 			},
 			"required": []string{"query"},
+		},
+	},
+	{
+		Name:        "gitlab_global_search",
+		Description: "全局搜索功能，支持多文件、多模式、跨文件搜索，用于深度代码分析和安全审计",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"search_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "搜索模式列表，支持多个关键词同时搜索",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"file_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "文件模式过滤（如*.go、*.py等）",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"exclude_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "排除的文件模式（如*.test.go、vendor/*等）",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"case_sensitive": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否区分大小写（可选，默认false）",
+				},
+				"include_context": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含上下文行（可选，默认true）",
+				},
+				"context_lines": map[string]interface{}{
+					"type":        "integer",
+					"description": "上下文行数（可选，默认3行）",
+				},
+			},
+			"required": []string{"search_patterns"},
 		},
 	},
 	{
@@ -371,6 +435,10 @@ func GitLabMCPExecutor(call GitLabMCPCall, git *gitlab.Client, projectID int) Gi
 		return executeGitLabFileContent(call.Arguments, git, projectID)
 	case "gitlab_file_info":
 		return executeGitLabFileInfo(call.Arguments, git, projectID)
+	case "gitlab_project_structure":
+		return executeGitLabProjectStructure(call.Arguments, git, projectID)
+	case "gitlab_global_search":
+		return executeGitLabGlobalSearch(call.Arguments, git, projectID)
 	case "gitlab_context_analysis":
 		return executeGitLabContextAnalysis(call.Arguments, git, projectID)
 	case "gitlab_function_analysis":
@@ -2344,4 +2412,298 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// executeGitLabProjectStructure 执行项目结构获取
+func executeGitLabProjectStructure(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	ref := "main" // 默认分支
+	if r, ok := GetStringParam(args, "ref", "branch", "reference"); ok {
+		ref = r
+	}
+
+	includeContent := false
+	if content, ok := args["include_content"].(bool); ok {
+		includeContent = content
+	}
+
+	fileTypeFilter := ""
+	if filter, ok := args["file_type_filter"].(string); ok {
+		fileTypeFilter = filter
+	}
+
+	// 获取项目信息
+	project, _, err := git.Projects.GetProject(projectID, &gitlab.GetProjectOptions{})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取项目信息失败: %v", err)}
+	}
+
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String(ref),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	// 构建项目结构
+	var projectStructure []map[string]interface{}
+	var directories []string
+	var files []string
+	var totalFiles, totalDirectories int
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			// 目录
+			directories = append(directories, item.Path)
+			totalDirectories++
+			projectStructure = append(projectStructure, map[string]interface{}{
+				"type":     "directory",
+				"path":     item.Path,
+				"name":     item.Name,
+				"id":       item.ID,
+				"mode":     item.Mode,
+			})
+		} else {
+			// 文件
+			// 检查文件类型过滤
+			if fileTypeFilter != "" && !strings.HasSuffix(item.Path, "."+fileTypeFilter) {
+				continue
+			}
+
+			files = append(files, item.Path)
+			totalFiles++
+
+			fileInfo := map[string]interface{}{
+				"type":     "file",
+				"path":     item.Path,
+				"name":     item.Name,
+				"id":       item.ID,
+				"mode":     item.Mode,
+			}
+
+			// 如果需要包含内容预览
+			if includeContent {
+				file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+					Ref: gitlab.String(ref),
+				})
+				if err == nil {
+					content, err := base64.StdEncoding.DecodeString(file.Content)
+					if err == nil {
+						contentStr := string(content)
+						// 限制预览长度
+						if len(contentStr) > 500 {
+							contentStr = contentStr[:500] + "..."
+						}
+						fileInfo["content_preview"] = contentStr
+						fileInfo["line_count"] = len(strings.Split(contentStr, "\n"))
+					}
+				}
+			}
+
+			projectStructure = append(projectStructure, fileInfo)
+		}
+	}
+
+	// 按路径排序
+	// 这里可以添加排序逻辑
+
+	resultData := map[string]interface{}{
+		"project_id":        projectID,
+		"project_name":      project.Name,
+		"project_path":      project.Path,
+		"ref":              ref,
+		"structure":        projectStructure,
+		"statistics": map[string]interface{}{
+			"total_files":       totalFiles,
+			"total_directories": totalDirectories,
+			"total_items":       len(projectStructure),
+		},
+		"file_type_filter": fileTypeFilter,
+		"include_content":  includeContent,
+	}
+
+	resultJSON, _ := json.Marshal(resultData)
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabGlobalSearch 执行全局搜索
+func executeGitLabGlobalSearch(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	// 获取搜索模式
+	searchPatternsInterface, ok := args["search_patterns"]
+	if !ok {
+		return GitLabMCPResult{Error: "search_patterns参数缺失"}
+	}
+
+	searchPatterns, ok := searchPatternsInterface.([]interface{})
+	if !ok {
+		return GitLabMCPResult{Error: "search_patterns参数类型错误，应为数组"}
+	}
+
+	if len(searchPatterns) == 0 {
+		return GitLabMCPResult{Error: "search_patterns数组不能为空"}
+	}
+
+	// 转换为字符串数组
+	var patterns []string
+	for _, pattern := range searchPatterns {
+		if str, ok := pattern.(string); ok {
+			patterns = append(patterns, str)
+		}
+	}
+
+	// 获取文件模式过滤
+	var filePatterns []string
+	if filePatternsInterface, ok := args["file_patterns"].([]interface{}); ok {
+		for _, pattern := range filePatternsInterface {
+			if str, ok := pattern.(string); ok {
+				filePatterns = append(filePatterns, str)
+			}
+		}
+	}
+
+	// 获取排除模式
+	var excludePatterns []string
+	if excludePatternsInterface, ok := args["exclude_patterns"].([]interface{}); ok {
+		for _, pattern := range excludePatternsInterface {
+			if str, ok := pattern.(string); ok {
+				excludePatterns = append(excludePatterns, str)
+			}
+		}
+	}
+
+	// 获取其他参数
+	caseSensitive := false
+	if cs, ok := args["case_sensitive"].(bool); ok {
+		caseSensitive = cs
+	}
+
+	includeContext := true
+	if ic, ok := args["include_context"].(bool); ok {
+		includeContext = ic
+	}
+
+	contextLines := 3
+	if cl, ok := args["context_lines"].(float64); ok {
+		contextLines = int(cl)
+	}
+
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	var allResults []map[string]interface{}
+	var totalMatches int
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件模式过滤
+		if len(filePatterns) > 0 {
+			matched := false
+			for _, pattern := range filePatterns {
+				if strings.Contains(item.Path, pattern) || strings.HasSuffix(item.Path, pattern) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// 检查排除模式
+		if len(excludePatterns) > 0 {
+			excluded := false
+			for _, pattern := range excludePatterns {
+				if strings.Contains(item.Path, pattern) || strings.HasSuffix(item.Path, pattern) {
+					excluded = true
+					break
+				}
+			}
+			if excluded {
+				continue
+			}
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		contentStr := string(content)
+		lines := strings.Split(contentStr, "\n")
+
+		// 在每个文件中搜索所有模式
+		for _, pattern := range patterns {
+			searchPattern := pattern
+			if !caseSensitive {
+				searchPattern = strings.ToLower(pattern)
+			}
+
+			for lineNum, line := range lines {
+				lineToSearch := line
+				if !caseSensitive {
+					lineToSearch = strings.ToLower(line)
+				}
+
+				if strings.Contains(lineToSearch, searchPattern) {
+					totalMatches++
+
+					result := map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"matched_line": line,
+					}
+
+					// 添加上下文
+					if includeContext {
+						start := max(0, lineNum-contextLines)
+						end := min(len(lines), lineNum+contextLines+1)
+						contextLinesSlice := lines[start:end]
+						result["context"] = strings.Join(contextLinesSlice, "\n")
+						result["context_start"] = start + 1
+						result["context_end"] = end
+					}
+
+					allResults = append(allResults, result)
+				}
+			}
+		}
+	}
+
+	// 按文件路径和行号排序
+	// 这里可以添加排序逻辑
+
+	resultData := map[string]interface{}{
+		"search_patterns":   patterns,
+		"file_patterns":     filePatterns,
+		"exclude_patterns":  excludePatterns,
+		"case_sensitive":    caseSensitive,
+		"include_context":   includeContext,
+		"context_lines":     contextLines,
+		"results":           allResults,
+		"total_matches":     totalMatches,
+		"total_files_searched": len(tree),
+	}
+
+	resultJSON, _ := json.Marshal(resultData)
+	return GitLabMCPResult{Content: string(resultJSON)}
 } 
