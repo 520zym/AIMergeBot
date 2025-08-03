@@ -404,11 +404,22 @@ func GitLabMCPExecutor(call GitLabMCPCall, git *gitlab.Client, projectID int) Gi
 	}
 }
 
+// GetStringParam 获取字符串参数，支持多种参数名变体
+func GetStringParam(args map[string]interface{}, paramNames ...string) (string, bool) {
+	for _, name := range paramNames {
+		if value, ok := args[name].(string); ok && value != "" {
+			return value, true
+		}
+	}
+	return "", false
+}
+
 // executeGitLabSearchCode 执行代码搜索
 func executeGitLabSearchCode(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	query, ok := args["query"].(string)
-	if !ok || query == "" {
-		return GitLabMCPResult{Error: "query参数缺失或类型错误"}
+	// 支持多种参数名：query, search_term, searchTerm
+	query, ok := GetStringParam(args, "query", "search_term", "searchTerm")
+	if !ok {
+		return GitLabMCPResult{Error: "query/search_term/searchTerm参数缺失或类型错误"}
 	}
 
 	fileType, _ := args["file_type"].(string)
@@ -508,12 +519,12 @@ func executeGitLabSearchCode(args map[string]interface{}, git *gitlab.Client, pr
 
 // executeGitLabFileContent 执行文件内容获取
 func executeGitLabFileContent(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
-	ref, _ := args["ref"].(string)
+	ref, _ := GetStringParam(args, "ref", "branch", "reference")
 	if ref == "" {
 		ref = "main" // 默认分支
 	}
@@ -544,13 +555,13 @@ func executeGitLabFileContent(args map[string]interface{}, git *gitlab.Client, p
 
 // executeGitLabFileInfo 执行文件信息获取
 func executeGitLabFileInfo(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
 	ref := "main" // 默认分支
-	if r, ok := args["ref"].(string); ok && r != "" {
+	if r, ok := GetStringParam(args, "ref", "branch", "reference"); ok {
 		ref = r
 	}
 
@@ -625,9 +636,9 @@ func GetAvailableGitLabTools() []GitLabMCPTool {
 
 // executeGitLabContextAnalysis 执行上下文分析
 func executeGitLabContextAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
 	lineNumber, ok := args["line_number"].(float64)
@@ -747,14 +758,14 @@ func min(a, b int) int {
 
 // executeGitLabFunctionAnalysis 执行函数分析
 func executeGitLabFunctionAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
-	functionName, ok := args["function_name"].(string)
-	if !ok || functionName == "" {
-		return GitLabMCPResult{Error: "function_name参数缺失或类型错误"}
+	functionName, ok := GetStringParam(args, "function_name", "functionName", "function")
+	if !ok {
+		return GitLabMCPResult{Error: "function_name/functionName/function参数缺失或类型错误"}
 	}
 
 	includeCalls := true
@@ -946,9 +957,9 @@ func executeGitLabSecurityPatternSearch(args map[string]interface{}, git *gitlab
 
 // executeGitLabDependencyAnalysis 执行依赖分析
 func executeGitLabDependencyAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
 	analysisType, _ := args["analysis_type"].(string)
@@ -2038,14 +2049,14 @@ type RecursiveAnalysisResult struct {
 
 // executeGitLabRecursiveFunctionAnalysis 执行递归函数调用分析
 func executeGitLabRecursiveFunctionAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	filePath, ok := args["file_path"].(string)
-	if !ok || filePath == "" {
-		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	filePath, ok := GetStringParam(args, "file_path", "filePath", "filepath")
+	if !ok {
+		return GitLabMCPResult{Error: "file_path/filePath/filepath参数缺失或类型错误"}
 	}
 
-	functionName, ok := args["function_name"].(string)
-	if !ok || functionName == "" {
-		return GitLabMCPResult{Error: "function_name参数缺失或类型错误"}
+	functionName, ok := GetStringParam(args, "function_name", "functionName", "function")
+	if !ok {
+		return GitLabMCPResult{Error: "function_name/functionName/function参数缺失或类型错误"}
 	}
 
 	maxDepth := 3 // 默认最大深度

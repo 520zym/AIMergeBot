@@ -341,14 +341,61 @@ func (r *ReActAuditor) buildSimplifiedPrompt() string {
 3. **观察阶段**：分析工具返回的结果
 4. **重复循环**：直到获得完整的分析结果
 
-## 可用工具
-- gitlab_file_content: 获取文件完整内容
-- gitlab_file_info: 获取文件基本信息
-- gitlab_search_code: 搜索代码中的特定模式
-- gitlab_context_analysis: 分析代码上下文
-- gitlab_function_analysis: 分析函数定义和调用
-- gitlab_recursive_function_analysis: 递归分析函数调用链
-- gitlab_dependency_analysis: 分析项目依赖
+## 可用工具及参数格式
+
+### 1. gitlab_file_content - 获取文件完整内容
+**参数格式：**
+{
+  "file_path": "文件路径（相对于仓库根目录）",
+  "ref": "分支或提交引用（可选，默认为默认分支）"
+}
+
+### 2. gitlab_file_info - 获取文件基本信息
+**参数格式：**
+{
+  "file_path": "文件路径（相对于仓库根目录）",
+  "ref": "分支或提交引用（可选，默认为默认分支）"
+}
+
+### 3. gitlab_search_code - 搜索代码中的特定模式
+**参数格式：**
+{
+  "query": "要搜索的文本或模式",
+  "file_type": "文件类型过滤（可选，如go、py、js）"
+}
+
+### 4. gitlab_context_analysis - 分析代码上下文
+**参数格式：**
+{
+  "file_path": "文件路径",
+  "line_number": 行号（整数）,
+  "context_lines": "上下文行数（可选，默认5行）"
+}
+
+### 5. gitlab_function_analysis - 分析函数定义和调用
+**参数格式：**
+{
+  "file_path": "文件路径",
+  "function_name": "函数名称",
+  "include_calls": "是否包含函数调用信息（可选，默认true）"
+}
+
+### 6. gitlab_recursive_function_analysis - 递归分析函数调用链
+**参数格式：**
+{
+  "file_path": "起始文件路径",
+  "function_name": "起始函数名称",
+  "max_depth": "最大递归深度（可选，默认3层）",
+  "analyze_cross_file_calls": "是否分析跨文件调用（可选，默认true）"
+}
+
+### 7. gitlab_dependency_analysis - 分析项目依赖
+**参数格式：**
+{
+  "file_path": "依赖文件路径（如go.mod、package.json、requirements.txt等）"
+}
+
+**重要：请严格按照上述参数格式调用工具，参数名必须完全匹配！**
 
 ## 响应格式要求
 
@@ -517,23 +564,127 @@ func (r *ReActAuditor) buildFullPrompt() string {
 3. **观察阶段**：分析工具返回的结果
 4. **重复循环**：直到获得完整的分析结果
 
-## 可用工具（完整版）
-- gitlab_file_content: 获取文件完整内容
-- gitlab_file_info: 获取文件基本信息
-- gitlab_search_code: 搜索代码中的特定模式
-- gitlab_context_analysis: 分析代码上下文
-- gitlab_function_analysis: 分析函数定义和调用
-- gitlab_recursive_function_analysis: 递归分析函数调用链
-- gitlab_dependency_analysis: 分析项目依赖
-- gitlab_security_pattern_search: 搜索特定安全漏洞模式
-- gitlab_authentication_analysis: 分析认证和授权机制
-- gitlab_input_validation_analysis: 分析输入验证机制
-- gitlab_network_operation_analysis: 分析网络操作安全性
-- gitlab_data_flow_analysis: 追踪数据流
-- gitlab_api_endpoint_analysis: 分析API端点安全
-- gitlab_error_handling_analysis: 分析错误处理机制
-- gitlab_file_operation_analysis: 分析文件操作安全
-- gitlab_config_analysis: 分析配置文件安全
+## 可用工具及参数格式（完整版）
+
+### 基础工具
+#### 1. gitlab_file_content - 获取文件完整内容
+**参数格式：**
+{
+  "file_path": "文件路径（相对于仓库根目录）",
+  "ref": "分支或提交引用（可选，默认为默认分支）"
+}
+
+#### 2. gitlab_file_info - 获取文件基本信息
+**参数格式：**
+{
+  "file_path": "文件路径（相对于仓库根目录）",
+  "ref": "分支或提交引用（可选，默认为默认分支）"
+}
+
+#### 3. gitlab_search_code - 搜索代码中的特定模式
+**参数格式：**
+{
+  "query": "要搜索的文本或模式",
+  "file_type": "文件类型过滤（可选，如go、py、js）"
+}
+
+#### 4. gitlab_context_analysis - 分析代码上下文
+**参数格式：**
+{
+  "file_path": "文件路径",
+  "line_number": 行号（整数）,
+  "context_lines": "上下文行数（可选，默认5行）"
+}
+
+#### 5. gitlab_function_analysis - 分析函数定义和调用
+**参数格式：**
+{
+  "file_path": "文件路径",
+  "function_name": "函数名称",
+  "include_calls": "是否包含函数调用信息（可选，默认true）"
+}
+
+#### 6. gitlab_recursive_function_analysis - 递归分析函数调用链
+**参数格式：**
+{
+  "file_path": "起始文件路径",
+  "function_name": "起始函数名称",
+  "max_depth": "最大递归深度（可选，默认3层）",
+  "analyze_cross_file_calls": "是否分析跨文件调用（可选，默认true）"
+}
+
+#### 7. gitlab_dependency_analysis - 分析项目依赖
+**参数格式：**
+{
+  "file_path": "依赖文件路径（如go.mod、package.json、requirements.txt等）"
+}
+
+### 安全分析工具
+#### 8. gitlab_security_pattern_search - 搜索特定安全漏洞模式
+**参数格式：**
+{
+  "pattern_type": "模式类型（如sql_injection、xss、path_traversal等）",
+  "file_type": "文件类型过滤（可选）",
+  "severity": "严重程度过滤（可选：high/medium/low）"
+}
+
+#### 9. gitlab_authentication_analysis - 分析认证和授权机制
+**参数格式：**
+{
+  "search_pattern": "搜索模式（如auth、login、password等）",
+  "file_type": "文件类型过滤（可选）"
+}
+
+#### 10. gitlab_input_validation_analysis - 分析输入验证机制
+**参数格式：**
+{
+  "validation_type": "验证类型（如user_input、form_data、api_params等）",
+  "file_type": "文件类型过滤（可选）"
+}
+
+#### 11. gitlab_network_operation_analysis - 分析网络操作安全性
+**参数格式：**
+{
+  "network_type": "网络类型（如http_request、api_call、external_service等）",
+  "security_aspect": "安全方面（如ssl、authentication、authorization等）"
+}
+
+#### 12. gitlab_data_flow_analysis - 追踪数据流
+**参数格式：**
+{
+  "data_type": "数据类型（如user_input、sensitive_data、config_data等）",
+  "flow_type": "流类型（如input_to_output、cross_boundary、external_flow等）"
+}
+
+#### 13. gitlab_api_endpoint_analysis - 分析API端点安全
+**参数格式：**
+{
+  "endpoint_type": "端点类型（如rest_api、graphql、rpc等）",
+  "security_aspect": "安全方面（如authentication、authorization、input_validation等）"
+}
+
+#### 14. gitlab_error_handling_analysis - 分析错误处理机制
+**参数格式：**
+{
+  "error_type": "错误类型（如exception、log_error、debug_info等）",
+  "file_type": "文件类型过滤（可选）"
+}
+
+#### 15. gitlab_file_operation_analysis - 分析文件操作安全
+**参数格式：**
+{
+  "operation_type": "操作类型（如file_read、file_write、file_upload等）",
+  "security_aspect": "安全方面（如path_validation、permission_check、content_validation等）"
+}
+
+#### 16. gitlab_config_analysis - 分析配置文件安全
+**参数格式：**
+{
+  "config_type": "配置类型（如database、api_keys、secrets等）",
+  "file_pattern": "文件模式（可选，如*.env、*.yaml等）"
+}
+
+**重要：请严格按照上述参数格式调用工具，参数名必须完全匹配！**
 
 ## 响应格式要求
 
