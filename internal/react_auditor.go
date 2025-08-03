@@ -211,6 +211,22 @@ func (r *ReActAuditor) AuditWithReAct(diff string, projectInfo map[string]interf
 			reactStep.Observation = observation
 			log.Printf("ReAct步骤 %d - 工具执行结果长度: %d", step+1, len(observation))
 			
+			// 保存详细的工具调用结果
+			toolResult := map[string]interface{}{
+				"tool_name":    reactStep.Action,
+				"tool_args":    reactStep.ActionArgs,
+				"raw_output":   observation,
+				"output_length": len(observation),
+			}
+			
+			// 尝试解析JSON输出以提供结构化结果
+			var parsedOutput interface{}
+			if err := json.Unmarshal([]byte(observation), &parsedOutput); err == nil {
+				toolResult["parsed_output"] = parsedOutput
+			}
+			
+			reactStep.ToolResults = append(reactStep.ToolResults, toolResult)
+			
 			// 更新消息历史
 			messages = append(messages, openai.ChatCompletionMessage{
 				Role:    openai.ChatMessageRoleAssistant,
@@ -221,6 +237,9 @@ func (r *ReActAuditor) AuditWithReAct(diff string, projectInfo map[string]interf
 				Content: fmt.Sprintf("Observation: %s\n\n继续分析，如果需要更多信息请继续调用工具，如果分析完成请给出最终答案。", observation),
 			})
 		}
+		
+		// 将步骤添加到结果中
+		result.Steps = append(result.Steps, *reactStep)
 	}
 
 	return result, nil
@@ -278,57 +297,166 @@ func (r *ReActAuditor) buildSystemPrompt() string {
   }
 }
 
-## 白盒代码审计重点：
+## 智能上下文分析策略：
 
-### 1. 输入验证与过滤
+### 1. 注入漏洞深度分析策略
+**SQL注入分析流程**：
+1. 使用 gitlab_security_pattern_search 搜索SQL相关模式
+2. 对发现的SQL操作，使用 gitlab_context_analysis 分析输入来源
+3. 使用 gitlab_function_analysis 分析包含SQL的函数
+4. 使用 gitlab_search_code 搜索参数化查询的使用
+5. 分析认证和授权机制，确认是否存在绕过风险
+
+**命令注入分析流程**：
+1. 使用 gitlab_security_pattern_search 搜索命令执行模式
+2. 使用 gitlab_context_analysis 分析命令参数来源
+3. 使用 gitlab_function_analysis 分析命令执行函数
+4. 搜索输入验证和过滤机制
+5. 分析权限控制，确认执行权限
+
+**XSS分析流程**：
+1. 使用 gitlab_security_pattern_search 搜索XSS相关模式
+2. 使用 gitlab_context_analysis 分析用户输入处理
+3. 搜索HTML编码和转义机制
+4. 分析CSP配置和内容过滤
+5. 检查输出编码和验证
+
+### 2. 越权漏洞深度分析策略
+**认证绕过分析流程**：
+1. 使用 gitlab_search_code 搜索认证相关代码
+2. 使用 gitlab_function_analysis 分析认证函数
+3. 使用 gitlab_context_analysis 分析认证逻辑
+4. 搜索会话管理和Token验证
+5. 分析权限检查机制
+
+**权限提升分析流程**：
+1. 使用 gitlab_search_code 搜索权限检查代码
+2. 使用 gitlab_function_analysis 分析权限验证函数
+3. 使用 gitlab_context_analysis 分析权限逻辑
+4. 搜索角色和权限定义
+5. 分析业务逻辑中的权限控制
+
+### 3. 业务逻辑漏洞分析策略
+**数据流追踪**：
+1. 使用 gitlab_search_code 搜索关键业务函数
+2. 使用 gitlab_function_analysis 分析业务逻辑
+3. 使用 gitlab_context_analysis 分析数据流
+4. 搜索并发控制和竞态条件
+5. 分析业务规则验证
+
+**敏感操作分析**：
+1. 使用 gitlab_security_pattern_search 搜索敏感操作
+2. 使用 gitlab_function_analysis 分析操作函数
+3. 使用 gitlab_context_analysis 分析操作上下文
+4. 搜索操作权限验证
+5. 分析操作日志和审计
+
+### 4. 递归函数调用链分析策略
+**深度函数调用追踪**：
+1. 使用 gitlab_recursive_function_analysis 分析函数调用链
+2. 设置合适的 max_depth 参数（建议3-5层）
+3. 启用 include_security_analysis 进行安全分析
+4. 启用 analyze_cross_file_calls 分析跨文件调用
+5. 追踪安全漏洞在调用链中的传播
+
+**调用链安全分析**：
+1. 从入口函数开始递归分析
+2. 识别每个函数中的安全风险
+3. 分析风险在调用链中的传播路径
+4. 评估跨文件调用的安全影响
+5. 提供完整的调用链安全报告
+
+**重要：当发现函数调用时，必须使用递归分析**
+- 如果发现代码中有函数调用（如 processUserData(rows)）
+- 如果发现跨文件的函数调用
+- 如果需要深入分析被调用函数的实现
+- 如果怀疑安全漏洞可能通过调用链传播
+- **优先使用 gitlab_recursive_function_analysis 而不是 gitlab_function_analysis**
+
+### 4. 智能工具调用策略
+
+#### 上下文长度智能配置：
+- **快速定位**：context_lines=5（快速了解代码结构）
+- **函数分析**：context_lines=10（查看函数定义和调用）
+- **深度分析**：context_lines=15-20（深入分析业务逻辑）
+- **安全审计**：context_lines=20-30（全面安全分析）
+- **注入分析**：context_lines=25-35（详细分析输入处理）
+- **越权分析**：context_lines=20-25（分析权限控制逻辑）
+
+#### 分析深度策略：
+- **第一层**：使用 gitlab_file_info 了解文件结构
+- **第二层**：使用 gitlab_security_pattern_search 快速定位风险点
+- **第三层**：使用 gitlab_context_analysis 深入分析风险点上下文
+- **第四层**：使用 gitlab_function_analysis 分析相关函数
+- **第五层**：使用 gitlab_search_code 搜索相关代码模式
+- **第六层**：使用 gitlab_file_content 获取完整文件进行综合分析
+
+#### 误报控制策略：
+1. **多重验证**：对每个潜在漏洞进行多角度验证
+2. **上下文确认**：确保理解完整的业务逻辑和认证机制
+3. **安全机制检查**：搜索相关的安全防护措施
+4. **业务场景理解**：结合业务场景判断是否为真实漏洞
+5. **风险等级评估**：根据利用难度和影响范围评估风险等级
+
+### 5. 白盒代码审计重点：
+
+#### 输入验证与过滤
 - 检查用户输入是否经过proper验证
 - 查找SQL注入、XSS、命令注入等漏洞
 - 分析输入过滤逻辑的完整性
 - 检查参数化查询的使用
+- **深度分析**：追踪输入从接收到处理的完整流程
 
-### 2. 认证与授权
+#### 认证与授权
 - 分析认证流程的安全性
 - 检查权限控制逻辑
 - 查找认证绕过漏洞
 - 分析会话管理机制
+- **深度分析**：理解完整的认证授权架构
 
-### 3. 敏感信息处理
+#### 敏感信息处理
 - 查找硬编码的密码、密钥、Token
 - 检查敏感信息的传输和存储
 - 分析加密算法的使用
 - 检查日志中的敏感信息泄露
+- **深度分析**：追踪敏感数据的完整生命周期
 
-### 4. 文件操作安全
+#### 文件操作安全
 - 检查路径遍历漏洞
 - 分析文件上传/下载的安全性
 - 检查文件权限控制
 - 分析临时文件处理
+- **深度分析**：理解文件操作的完整安全控制
 
-### 5. 网络通信安全
+#### 网络通信安全
 - 检查SSRF漏洞
 - 分析网络请求的安全性
 - 检查HTTPS的使用
 - 分析API端点的安全性
+- **深度分析**：理解网络通信的完整安全机制
 
-### 6. 业务逻辑安全
+#### 业务逻辑安全
 - 检查业务逻辑漏洞
 - 分析并发安全问题
 - 检查竞态条件
 - 分析业务规则绕过
+- **深度分析**：理解业务逻辑的完整安全控制
 
-### 7. 依赖安全
+#### 依赖安全
 - 检查第三方依赖的安全漏洞
 - 分析依赖版本的安全性
 - 检查过时的依赖包
 - 分析依赖的权限要求
+- **深度分析**：理解依赖的完整安全影响
 
-### 8. 错误处理与日志
+#### 错误处理与日志
 - 检查错误信息泄露
 - 分析异常处理的安全性
 - 检查日志记录的安全性
 - 分析调试信息的泄露
+- **深度分析**：理解错误处理的完整安全机制
 
-### 9. 创新性安全发现
+#### 创新性安全发现
 - **不要局限于预定义的安全模式**
 - **主动发现新的安全漏洞类型**
 - **分析代码逻辑中的潜在风险**
@@ -337,7 +465,7 @@ func (r *ReActAuditor) buildSystemPrompt() string {
 - **分析代码架构的安全缺陷**
 - **识别新兴的安全威胁模式**
 
-## 分析策略：
+### 6. 分析策略：
 
 1. **深度分析**：使用工具获取更多上下文信息，深入分析代码逻辑
 2. **关联分析**：将发现的问题与相关代码关联，理解攻击面
@@ -347,38 +475,21 @@ func (r *ReActAuditor) buildSystemPrompt() string {
 6. **创新发现**：**主动寻找预定义规则之外的安全问题**
 7. **业务分析**：**结合业务场景分析特有的安全风险**
 8. **架构审查**：**从整体架构角度发现安全缺陷**
+9. **误报控制**：**通过多重验证和上下文分析减少误报**
+10. **风险分级**：**根据实际影响和利用难度进行准确的风险分级**
 
-## 工具使用指导：
+### 7. 工具使用指导：
 
-### 智能工具调用策略：
+#### 智能工具调用策略：
 1. **首先使用 gitlab_file_info** 获取文件基本信息（行数、类型等）
 2. **然后使用 gitlab_context_analysis** 进行详细分析，根据文件行数智能选择行号
 3. **使用 gitlab_search_code** 搜索特定的安全模式或代码片段
 4. **使用 gitlab_file_content** 获取完整文件内容进行综合分析
 
-### 上下文长度智能配置：
-- **简单搜索**：context_lines=5（快速定位）
-- **函数分析**：context_lines=10（查看函数定义和调用）
-- **复杂逻辑**：context_lines=15-20（深入分析业务逻辑）
-- **安全审计**：context_lines=20-30（全面安全分析）
-- **依赖分析**：context_lines=10（查看导入和依赖关系）
-
-### 行号选择策略：
-- **小文件（<50行）**：选择中间行或关键行进行分析
-- **中等文件（50-200行）**：选择函数定义、主要逻辑行进行分析
-- **大文件（>200行）**：先获取文件信息，然后选择关键行进行分析
-- **避免边界行号**：不要选择第1行或最后几行，除非有特殊需要
-
-### 工具使用最佳实践：
-- 使用 gitlab_file_info 了解文件结构后再进行详细分析
-- 使用 gitlab_enhanced_code_search 进行智能搜索，根据分析深度配置context_lines
-- 使用 gitlab_function_analysis 深入分析特定函数的安全性
-- 使用 gitlab_context_analysis 获取特定代码行的详细上下文
-- 使用 gitlab_security_audit 进行综合安全审计
-
-### 核心安全分析工具：
+#### 核心安全分析工具：
 - **gitlab_security_pattern_search**: 搜索特定安全漏洞模式（SQL注入、XSS、命令注入等）
 - **gitlab_function_analysis**: 分析函数的完整定义、调用关系、参数传递
+- **gitlab_recursive_function_analysis**: **递归分析函数调用链，追踪安全漏洞传播**
 - **gitlab_dependency_analysis**: 分析项目依赖的安全风险
 - **gitlab_config_analysis**: 分析配置文件中的安全问题
 - **gitlab_data_flow_analysis**: 追踪数据流，识别数据泄露风险
@@ -388,29 +499,57 @@ func (r *ReActAuditor) buildSystemPrompt() string {
 - **gitlab_file_operation_analysis**: 分析文件操作的安全性
 - **gitlab_network_operation_analysis**: 分析网络操作的安全风险
 
-### 安全分析策略：
+#### 安全分析策略：
 1. **漏洞模式搜索**: 使用 gitlab_security_pattern_search 搜索常见漏洞模式
 2. **函数深度分析**: 使用 gitlab_function_analysis 分析关键函数的安全性
-3. **依赖安全检查**: 使用 gitlab_dependency_analysis 检查第三方依赖风险
-4. **配置安全审查**: 使用 gitlab_config_analysis 检查配置文件问题
-5. **数据流追踪**: 使用 gitlab_data_flow_analysis 追踪敏感数据流
-6. **API安全审计**: 使用 gitlab_api_endpoint_analysis 审计API端点
-7. **错误处理检查**: 使用 gitlab_error_handling_analysis 检查错误信息泄露
-8. **认证机制分析**: 使用 gitlab_authentication_analysis 分析认证流程
-9. **文件操作审计**: 使用 gitlab_file_operation_analysis 检查文件操作安全
-10. **网络操作检查**: 使用 gitlab_network_operation_analysis 检查网络请求安全
+3. **递归调用链分析**: **使用 gitlab_recursive_function_analysis 分析函数调用链和漏洞传播**
+4. **依赖安全检查**: 使用 gitlab_dependency_analysis 检查第三方依赖风险
+5. **配置安全审查**: 使用 gitlab_config_analysis 检查配置文件问题
+6. **数据流追踪**: 使用 gitlab_data_flow_analysis 追踪敏感数据流
+7. **API安全审计**: 使用 gitlab_api_endpoint_analysis 审计API端点
+8. **错误处理检查**: 使用 gitlab_error_handling_analysis 检查错误信息泄露
+9. **认证机制分析**: 使用 gitlab_authentication_analysis 分析认证流程
+10. **文件操作审计**: 使用 gitlab_file_operation_analysis 检查文件操作安全
+11. **网络操作检查**: 使用 gitlab_network_operation_analysis 检查网络请求安全
 
-### 文件内容处理策略：
+#### 递归分析使用场景：
+- **当代码中有函数调用时**：优先使用 gitlab_recursive_function_analysis
+- **当需要追踪漏洞传播时**：使用递归分析追踪调用链
+- **当发现跨文件调用时**：使用递归分析检查不同文件中的函数
+- **当需要深度分析时**：设置合适的 max_depth 参数
+
+#### 文件内容处理策略：
 - **如果文件内容与期望不符**：检查文件路径、分支信息是否正确
 - **如果文件很小（<20行）**：工具会自动返回完整内容，直接分析即可
 - **如果行号超出范围**：工具会自动调整并返回相关内容，注意查看调整信息
 - **如果文件不存在**：使用 gitlab_search_code 搜索相关文件
 - **如果分支信息错误**：尝试不同的分支名称（main、master、develop等）
 
-### 分析策略调整：
+#### 分析策略调整：
 - **当工具返回完整内容时**：直接基于完整内容进行安全分析
 - **当工具返回调整信息时**：理解调整原因，基于实际返回的内容进行分析
 - **当文件内容与diff不一致时**：可能是分支或文件路径问题，尝试其他分支或搜索相关文件
+
+### 8. 误报控制机制：
+
+#### 多重验证策略：
+1. **模式匹配验证**：通过安全模式搜索初步识别
+2. **上下文验证**：通过上下文分析确认漏洞存在
+3. **函数分析验证**：通过函数分析理解完整逻辑
+4. **业务逻辑验证**：结合业务场景判断是否为真实漏洞
+5. **安全机制验证**：检查是否存在相应的安全防护措施
+
+#### 风险等级评估标准：
+- **高风险**：确认存在且易于利用的漏洞
+- **中风险**：存在但需要特定条件才能利用的漏洞
+- **低风险**：存在但难以利用或影响较小的漏洞
+- **误报**：经过多重验证确认不是真实漏洞
+
+#### 上下文分析要求：
+- **注入漏洞**：必须分析输入来源、处理逻辑、输出方式
+- **越权漏洞**：必须分析认证机制、权限控制、业务逻辑
+- **业务逻辑漏洞**：必须理解完整的业务流程和规则
+- **配置漏洞**：必须分析配置的完整性和影响范围
 
 ## 输出要求：
 
@@ -422,6 +561,8 @@ func (r *ReActAuditor) buildSystemPrompt() string {
 6. **独特证据**：**每个问题都要有独特的evidence，基于具体的工具调用结果**
 7. **个性化分析**：**每个问题都要有独特的analysis_context，说明如何发现和确认该问题**
 8. **具体位置**：**每个问题都要有具体的文件路径和行号**
+9. **误报控制**：**通过多重验证确保分析结果的准确性**
+10. **风险分级**：**根据实际影响和利用难度进行准确的风险分级**
 
 请严格按照JSON格式输出，不要包含其他文本。`, string(toolsJSON))
 }

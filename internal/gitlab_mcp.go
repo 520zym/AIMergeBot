@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/xanzy/go-gitlab"
@@ -99,9 +98,9 @@ var GitLabMCPTools = []GitLabMCPTool{
 					"type":        "integer",
 					"description": "行号",
 				},
-				"context_size": map[string]interface{}{
+				"context_lines": map[string]interface{}{
 					"type":        "integer",
-					"description": "上下文行数（可选，默认为5）",
+					"description": "上下文行数（可选，默认5行）",
 				},
 			},
 			"required": []string{"file_path", "line_number"},
@@ -109,7 +108,7 @@ var GitLabMCPTools = []GitLabMCPTool{
 	},
 	{
 		Name:        "gitlab_function_analysis",
-		Description: "分析特定函数的完整定义、调用关系、参数传递、返回值处理等，用于深入理解函数的安全风险",
+		Description: "分析特定函数的完整定义、调用关系、参数传递等，用于深入理解函数的安全性和潜在风险",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -123,39 +122,51 @@ var GitLabMCPTools = []GitLabMCPTool{
 				},
 				"include_calls": map[string]interface{}{
 					"type":        "boolean",
-					"description": "是否包含函数调用位置（可选，默认为true）",
+					"description": "是否包含函数调用信息（可选，默认true）",
 				},
 			},
 			"required": []string{"file_path", "function_name"},
 		},
 	},
 	{
-		Name:        "gitlab_dependency_analysis",
-		Description: "分析项目的依赖关系，包括导入的包、第三方库、版本信息等，用于识别依赖相关的安全风险",
+		Name:        "gitlab_recursive_function_analysis",
+		Description: "递归分析函数调用链，追踪函数间的调用关系，深入分析被调用函数的实现，用于发现通过调用链传播的安全漏洞",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"file_path": map[string]interface{}{
 					"type":        "string",
-					"description": "依赖文件路径（如go.mod、package.json、requirements.txt）",
+					"description": "起始文件路径",
 				},
-				"analysis_type": map[string]interface{}{
+				"function_name": map[string]interface{}{
 					"type":        "string",
-					"description": "分析类型（dependencies、versions、security）",
+					"description": "起始函数名称",
+				},
+				"max_depth": map[string]interface{}{
+					"type":        "integer",
+					"description": "最大递归深度（可选，默认3层）",
+				},
+				"include_security_analysis": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含安全分析（可选，默认true）",
+				},
+				"analyze_cross_file_calls": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否分析跨文件调用（可选，默认true）",
 				},
 			},
-			"required": []string{"file_path"},
+			"required": []string{"file_path", "function_name"},
 		},
 	},
 	{
 		Name:        "gitlab_security_pattern_search",
-		Description: "搜索特定的安全模式，如SQL注入、XSS、命令注入、路径遍历等漏洞的常见代码模式",
+		Description: "搜索特定的安全漏洞模式（SQL注入、XSS、命令注入等），用于快速识别潜在的安全风险",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"pattern_type": map[string]interface{}{
 					"type":        "string",
-					"description": "安全模式类型（sql_injection、xss、command_injection、path_traversal、ssrf、auth_bypass）",
+					"description": "安全模式类型（sql_injection、xss、command_injection、path_traversal、ssrf、auth_bypass等）",
 				},
 				"file_type": map[string]interface{}{
 					"type":        "string",
@@ -163,56 +174,234 @@ var GitLabMCPTools = []GitLabMCPTool{
 				},
 				"severity": map[string]interface{}{
 					"type":        "string",
-					"description": "严重程度过滤（high、medium、low）",
+					"description": "严重程度过滤（high、medium、low，可选）",
 				},
 			},
 			"required": []string{"pattern_type"},
 		},
 	},
+	{
+		Name:        "gitlab_dependency_analysis",
+		Description: "分析项目依赖的安全风险，包括第三方库的漏洞、版本问题等",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"file_path": map[string]interface{}{
+					"type":        "string",
+					"description": "依赖文件路径（如go.mod、package.json、requirements.txt等）",
+				},
+				"analysis_type": map[string]interface{}{
+					"type":        "string",
+					"description": "分析类型（dependencies、security、versions，可选）",
+				},
+			},
+			"required": []string{"file_path"},
+		},
+	},
+	{
+		Name:        "gitlab_authentication_analysis",
+		Description: "分析认证和授权机制，包括登录流程、权限检查、会话管理等，用于识别认证绕过和权限提升漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"search_pattern": map[string]interface{}{
+					"type":        "string",
+					"description": "搜索模式（auth、login、session、token、permission等）",
+				},
+				"file_type": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（可选）",
+				},
+			},
+			"required": []string{"search_pattern"},
+		},
+	},
+	{
+		Name:        "gitlab_input_validation_analysis",
+		Description: "分析输入验证和过滤机制，包括参数验证、输入过滤、输出编码等，用于识别注入漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"validation_type": map[string]interface{}{
+					"type":        "string",
+					"description": "验证类型（input、output、filter、encode等）",
+				},
+				"file_type": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（可选）",
+				},
+			},
+			"required": []string{"validation_type"},
+		},
+	},
+	{
+		Name:        "gitlab_business_logic_analysis",
+		Description: "分析业务逻辑的安全性，包括业务流程、规则验证、并发控制等，用于识别业务逻辑漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"logic_type": map[string]interface{}{
+					"type":        "string",
+					"description": "逻辑类型（business、concurrency、race_condition、bypass等）",
+				},
+				"file_type": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（可选）",
+				},
+			},
+			"required": []string{"logic_type"},
+		},
+	},
+	{
+		Name:        "gitlab_data_flow_analysis",
+		Description: "追踪数据流，分析敏感数据的传输、存储、处理过程，用于识别数据泄露和隐私问题",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"data_type": map[string]interface{}{
+					"type":        "string",
+					"description": "数据类型（sensitive、personal、credential、token等）",
+				},
+				"flow_type": map[string]interface{}{
+					"type":        "string",
+					"description": "流类型（input、output、storage、transmission等）",
+				},
+			},
+			"required": []string{"data_type"},
+		},
+	},
+	{
+		Name:        "gitlab_api_endpoint_analysis",
+		Description: "分析API端点的安全性，包括端点定义、参数处理、权限控制等，用于识别API安全漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"endpoint_type": map[string]interface{}{
+					"type":        "string",
+					"description": "端点类型（rest、graphql、rpc、websocket等）",
+				},
+				"security_aspect": map[string]interface{}{
+					"type":        "string",
+					"description": "安全方面（auth、input、output、rate_limit等）",
+				},
+			},
+			"required": []string{"endpoint_type"},
+		},
+	},
+	{
+		Name:        "gitlab_error_handling_analysis",
+		Description: "分析错误处理机制的安全性，包括异常处理、错误信息、调试信息等，用于识别信息泄露",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"error_type": map[string]interface{}{
+					"type":        "string",
+					"description": "错误类型（exception、validation、system、debug等）",
+				},
+				"file_type": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（可选）",
+				},
+			},
+			"required": []string{"error_type"},
+		},
+	},
+	{
+		Name:        "gitlab_file_operation_analysis",
+		Description: "分析文件操作的安全性，包括文件上传、下载、读写、权限控制等，用于识别文件操作漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"operation_type": map[string]interface{}{
+					"type":        "string",
+					"description": "操作类型（upload、download、read、write、delete等）",
+				},
+				"security_aspect": map[string]interface{}{
+					"type":        "string",
+					"description": "安全方面（path、permission、validation、encoding等）",
+				},
+			},
+			"required": []string{"operation_type"},
+		},
+	},
+	{
+		Name:        "gitlab_network_operation_analysis",
+		Description: "分析网络操作的安全性，包括HTTP请求、网络调用、URL处理等，用于识别SSRF和网络相关漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"network_type": map[string]interface{}{
+					"type":        "string",
+					"description": "网络类型（http、https、tcp、udp、websocket等）",
+				},
+				"security_aspect": map[string]interface{}{
+					"type":        "string",
+					"description": "安全方面（url、protocol、certificate、proxy等）",
+				},
+			},
+			"required": []string{"network_type"},
+		},
+	},
+	{
+		Name:        "gitlab_config_analysis",
+		Description: "分析配置文件中的安全问题，包括敏感配置、权限设置、安全选项等，用于识别配置漏洞",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"config_type": map[string]interface{}{
+					"type":        "string",
+					"description": "配置类型（security、database、network、application等）",
+				},
+				"file_pattern": map[string]interface{}{
+					"type":        "string",
+					"description": "文件模式（*.conf、*.yml、*.json、*.env等）",
+				},
+			},
+			"required": []string{"config_type"},
+		},
+	},
 }
 
-// GitLabMCPExecutor 执行基于GitLab API的MCP工具调用
+// GitLabMCPExecutor 执行GitLab MCP工具调用
 func GitLabMCPExecutor(call GitLabMCPCall, git *gitlab.Client, projectID int) GitLabMCPResult {
-	log.Printf("GitLab MCP工具调用开始 - 工具名: %s", call.ToolName)
-
-	if git == nil {
-		log.Printf("GitLab MCP工具调用失败 - GitLab客户端为空")
-		return GitLabMCPResult{
-			Error: "GitLab客户端未初始化",
-		}
-	}
-
-	var result GitLabMCPResult
-
 	switch call.ToolName {
 	case "gitlab_search_code":
-		result = executeGitLabSearchCode(call.Arguments, git, projectID)
+		return executeGitLabSearchCode(call.Arguments, git, projectID)
 	case "gitlab_file_content":
-		result = executeGitLabFileContent(call.Arguments, git, projectID)
+		return executeGitLabFileContent(call.Arguments, git, projectID)
 	case "gitlab_file_info":
-		result = executeGitLabFileInfo(call.Arguments, git, projectID)
+		return executeGitLabFileInfo(call.Arguments, git, projectID)
 	case "gitlab_context_analysis":
-		result = executeGitLabContextAnalysis(call.Arguments, git, projectID)
+		return executeGitLabContextAnalysis(call.Arguments, git, projectID)
 	case "gitlab_function_analysis":
-		result = executeGitLabFunctionAnalysis(call.Arguments, git, projectID)
-	case "gitlab_dependency_analysis":
-		result = executeGitLabDependencyAnalysis(call.Arguments, git, projectID)
+		return executeGitLabFunctionAnalysis(call.Arguments, git, projectID)
 	case "gitlab_security_pattern_search":
-		result = executeGitLabSecurityPatternSearch(call.Arguments, git, projectID)
+		return executeGitLabSecurityPatternSearch(call.Arguments, git, projectID)
+	case "gitlab_dependency_analysis":
+		return executeGitLabDependencyAnalysis(call.Arguments, git, projectID)
+	case "gitlab_authentication_analysis":
+		return executeGitLabAuthenticationAnalysis(call.Arguments, git, projectID)
+	case "gitlab_input_validation_analysis":
+		return executeGitLabInputValidationAnalysis(call.Arguments, git, projectID)
+	case "gitlab_business_logic_analysis":
+		return executeGitLabBusinessLogicAnalysis(call.Arguments, git, projectID)
+	case "gitlab_data_flow_analysis":
+		return executeGitLabDataFlowAnalysis(call.Arguments, git, projectID)
+	case "gitlab_api_endpoint_analysis":
+		return executeGitLabAPIEndpointAnalysis(call.Arguments, git, projectID)
+	case "gitlab_error_handling_analysis":
+		return executeGitLabErrorHandlingAnalysis(call.Arguments, git, projectID)
+	case "gitlab_file_operation_analysis":
+		return executeGitLabFileOperationAnalysis(call.Arguments, git, projectID)
+	case "gitlab_network_operation_analysis":
+		return executeGitLabNetworkOperationAnalysis(call.Arguments, git, projectID)
+	case "gitlab_config_analysis":
+		return executeGitLabConfigAnalysis(call.Arguments, git, projectID)
+	case "gitlab_recursive_function_analysis":
+		return executeGitLabRecursiveFunctionAnalysis(call.Arguments, git, projectID)
 	default:
-		log.Printf("GitLab MCP工具调用失败 - 未知工具: %s", call.ToolName)
-		result = GitLabMCPResult{
-			Error: fmt.Sprintf("未知工具: %s", call.ToolName),
-		}
+		return GitLabMCPResult{Error: fmt.Sprintf("未知的工具: %s", call.ToolName)}
 	}
-
-	if result.Error != "" {
-		log.Printf("GitLab MCP工具调用失败 - 工具名: %s, 错误: %s", call.ToolName, result.Error)
-	} else {
-		log.Printf("GitLab MCP工具调用成功 - 工具名: %s, 输出长度: %d", call.ToolName, len(result.Content))
-	}
-
-	return result
 }
 
 // executeGitLabSearchCode 执行代码搜索
@@ -447,7 +636,7 @@ func executeGitLabContextAnalysis(args map[string]interface{}, git *gitlab.Clien
 	}
 
 	contextSize := 5 // 默认上下文行数
-	if size, ok := args["context_size"].(float64); ok {
+	if size, ok := args["context_lines"].(float64); ok {
 		contextSize = int(size)
 	}
 
@@ -937,4 +1126,1211 @@ func determineSeverity(pattern, patternType string) string {
 	return "medium"
 }
 
- 
+// executeGitLabAuthenticationAnalysis 执行认证分析
+func executeGitLabAuthenticationAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	searchPattern, ok := args["search_pattern"].(string)
+	if !ok || searchPattern == "" {
+		return GitLabMCPResult{Error: "search_pattern参数缺失或类型错误"}
+	}
+
+	fileType, _ := args["file_type"].(string)
+
+	// 定义认证相关搜索模式
+	authPatterns := map[string][]string{
+		"auth": {
+			"auth", "authentication", "login", "logout", "signin", "signout",
+			"authenticate", "authorize", "authorization", "permission",
+		},
+		"login": {
+			"login", "signin", "authenticate", "password", "username",
+			"credential", "session", "token", "jwt", "oauth",
+		},
+		"session": {
+			"session", "cookie", "token", "jwt", "refresh", "expire",
+			"timeout", "logout", "signout", "clear",
+		},
+		"token": {
+			"token", "jwt", "bearer", "access_token", "refresh_token",
+			"api_key", "secret", "credential",
+		},
+		"permission": {
+			"permission", "role", "admin", "user", "guest", "access",
+			"authorize", "authorization", "privilege", "right",
+		},
+	}
+
+	patterns, exists := authPatterns[searchPattern]
+	if !exists {
+		// 如果没有预定义模式，使用搜索模式作为关键词
+		patterns = []string{searchPattern}
+	}
+
+	// 搜索认证相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件类型过滤
+		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索认证模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "authentication",
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"search_pattern": searchPattern,
+		"file_type":     fileType,
+		"results":       searchResults,
+		"total_results": len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabInputValidationAnalysis 执行输入验证分析
+func executeGitLabInputValidationAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	validationType, ok := args["validation_type"].(string)
+	if !ok || validationType == "" {
+		return GitLabMCPResult{Error: "validation_type参数缺失或类型错误"}
+	}
+
+	fileType, _ := args["file_type"].(string)
+
+	// 定义输入验证相关搜索模式
+	validationPatterns := map[string][]string{
+		"input": {
+			"input", "validate", "validation", "check", "verify",
+			"sanitize", "filter", "clean", "escape",
+		},
+		"output": {
+			"output", "encode", "escape", "html", "url", "json",
+			"xml", "sql", "javascript", "encodeURIComponent",
+		},
+		"filter": {
+			"filter", "sanitize", "clean", "remove", "replace",
+			"strip", "trim", "whitelist", "blacklist",
+		},
+		"encode": {
+			"encode", "escape", "html", "url", "base64", "hex",
+			"encodeURIComponent", "encodeURI", "escapeHtml",
+		},
+	}
+
+	patterns, exists := validationPatterns[validationType]
+	if !exists {
+		// 如果没有预定义模式，使用验证类型作为关键词
+		patterns = []string{validationType}
+	}
+
+	// 搜索输入验证相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件类型过滤
+		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索验证模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "input_validation",
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"validation_type": validationType,
+		"file_type":      fileType,
+		"results":        searchResults,
+		"total_results":  len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabBusinessLogicAnalysis 执行业务逻辑分析
+func executeGitLabBusinessLogicAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	logicType, ok := args["logic_type"].(string)
+	if !ok || logicType == "" {
+		return GitLabMCPResult{Error: "logic_type参数缺失或类型错误"}
+	}
+
+	fileType, _ := args["file_type"].(string)
+
+	// 定义业务逻辑相关搜索模式
+	logicPatterns := map[string][]string{
+		"business": {
+			"business", "logic", "rule", "policy", "workflow",
+			"process", "state", "status", "condition",
+		},
+		"concurrency": {
+			"concurrency", "race", "thread", "lock", "mutex",
+			"atomic", "synchronize", "parallel", "async",
+		},
+		"race_condition": {
+			"race", "condition", "timing", "order", "sequence",
+			"concurrent", "parallel", "thread", "lock",
+		},
+		"bypass": {
+			"bypass", "skip", "ignore", "disable", "override",
+			"circumvent", "evade", "avoid", "exclude",
+		},
+	}
+
+	patterns, exists := logicPatterns[logicType]
+	if !exists {
+		// 如果没有预定义模式，使用逻辑类型作为关键词
+		patterns = []string{logicType}
+	}
+
+	// 搜索业务逻辑相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件类型过滤
+		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索业务逻辑模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 3),
+						"type":        "business_logic",
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"logic_type":   logicType,
+		"file_type":    fileType,
+		"results":      searchResults,
+		"total_results": len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabDataFlowAnalysis 执行数据流分析
+func executeGitLabDataFlowAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	dataType, ok := args["data_type"].(string)
+	if !ok || dataType == "" {
+		return GitLabMCPResult{Error: "data_type参数缺失或类型错误"}
+	}
+
+	flowType, _ := args["flow_type"].(string)
+
+	// 定义数据流相关搜索模式
+	dataPatterns := map[string][]string{
+		"sensitive": {
+			"sensitive", "secret", "password", "token", "key",
+			"credential", "private", "confidential", "personal",
+		},
+		"personal": {
+			"personal", "user", "customer", "client", "profile",
+			"name", "email", "phone", "address", "id",
+		},
+		"credential": {
+			"credential", "password", "token", "key", "secret",
+			"auth", "login", "session", "jwt", "api_key",
+		},
+		"token": {
+			"token", "jwt", "bearer", "access_token", "refresh_token",
+			"api_key", "secret", "credential", "session",
+		},
+	}
+
+	patterns, exists := dataPatterns[dataType]
+	if !exists {
+		// 如果没有预定义模式，使用数据类型作为关键词
+		patterns = []string{dataType}
+	}
+
+	// 搜索数据流相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索数据流模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "data_flow",
+						"flow_type":   flowType,
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"data_type":    dataType,
+		"flow_type":    flowType,
+		"results":      searchResults,
+		"total_results": len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabAPIEndpointAnalysis 执行API端点分析
+func executeGitLabAPIEndpointAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	endpointType, ok := args["endpoint_type"].(string)
+	if !ok || endpointType == "" {
+		return GitLabMCPResult{Error: "endpoint_type参数缺失或类型错误"}
+	}
+
+	securityAspect, _ := args["security_aspect"].(string)
+
+	// 定义API端点相关搜索模式
+	endpointPatterns := map[string][]string{
+		"rest": {
+			"rest", "api", "endpoint", "route", "handler",
+			"get", "post", "put", "delete", "patch",
+		},
+		"graphql": {
+			"graphql", "query", "mutation", "subscription",
+			"resolver", "schema", "type", "field",
+		},
+		"rpc": {
+			"rpc", "grpc", "remote", "procedure", "call",
+			"service", "method", "function",
+		},
+		"websocket": {
+			"websocket", "ws", "wss", "socket", "connection",
+			"real-time", "stream", "event",
+		},
+	}
+
+	patterns, exists := endpointPatterns[endpointType]
+	if !exists {
+		// 如果没有预定义模式，使用端点类型作为关键词
+		patterns = []string{endpointType}
+	}
+
+	// 搜索API端点相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索API端点模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "api_endpoint",
+						"security_aspect": securityAspect,
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"endpoint_type":   endpointType,
+		"security_aspect": securityAspect,
+		"results":         searchResults,
+		"total_results":   len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabErrorHandlingAnalysis 执行错误处理分析
+func executeGitLabErrorHandlingAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	errorType, ok := args["error_type"].(string)
+	if !ok || errorType == "" {
+		return GitLabMCPResult{Error: "error_type参数缺失或类型错误"}
+	}
+
+	fileType, _ := args["file_type"].(string)
+
+	// 定义错误处理相关搜索模式
+	errorPatterns := map[string][]string{
+		"exception": {
+			"exception", "error", "catch", "try", "throw",
+			"panic", "recover", "fatal", "critical",
+		},
+		"validation": {
+			"validation", "validate", "check", "verify",
+			"invalid", "error", "failed", "reject",
+		},
+		"system": {
+			"system", "error", "fatal", "critical", "panic",
+			"crash", "abort", "terminate", "exit",
+		},
+		"debug": {
+			"debug", "log", "print", "console", "trace",
+			"dump", "debugger", "breakpoint", "inspect",
+		},
+	}
+
+	patterns, exists := errorPatterns[errorType]
+	if !exists {
+		// 如果没有预定义模式，使用错误类型作为关键词
+		patterns = []string{errorType}
+	}
+
+	// 搜索错误处理相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件类型过滤
+		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索错误处理模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "error_handling",
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"error_type":   errorType,
+		"file_type":    fileType,
+		"results":      searchResults,
+		"total_results": len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabFileOperationAnalysis 执行文件操作分析
+func executeGitLabFileOperationAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	operationType, ok := args["operation_type"].(string)
+	if !ok || operationType == "" {
+		return GitLabMCPResult{Error: "operation_type参数缺失或类型错误"}
+	}
+
+	securityAspect, _ := args["security_aspect"].(string)
+
+	// 定义文件操作相关搜索模式
+	operationPatterns := map[string][]string{
+		"upload": {
+			"upload", "file", "multipart", "form", "input",
+			"save", "store", "write", "create",
+		},
+		"download": {
+			"download", "file", "read", "get", "fetch",
+			"retrieve", "load", "open", "stream",
+		},
+		"read": {
+			"read", "file", "open", "load", "get",
+			"readFile", "readdir", "stat", "access",
+		},
+		"write": {
+			"write", "file", "save", "create", "update",
+			"writeFile", "append", "modify", "change",
+		},
+		"delete": {
+			"delete", "remove", "unlink", "rm", "del",
+			"erase", "clear", "purge", "trash",
+		},
+	}
+
+	patterns, exists := operationPatterns[operationType]
+	if !exists {
+		// 如果没有预定义模式，使用操作类型作为关键词
+		patterns = []string{operationType}
+	}
+
+	// 搜索文件操作相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索文件操作模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "file_operation",
+						"security_aspect": securityAspect,
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"operation_type":  operationType,
+		"security_aspect": securityAspect,
+		"results":         searchResults,
+		"total_results":   len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabNetworkOperationAnalysis 执行网络操作分析
+func executeGitLabNetworkOperationAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	networkType, ok := args["network_type"].(string)
+	if !ok || networkType == "" {
+		return GitLabMCPResult{Error: "network_type参数缺失或类型错误"}
+	}
+
+	securityAspect, _ := args["security_aspect"].(string)
+
+	// 定义网络操作相关搜索模式
+	networkPatterns := map[string][]string{
+		"http": {
+			"http", "https", "request", "response", "get",
+			"post", "put", "delete", "fetch", "axios",
+		},
+		"https": {
+			"https", "ssl", "tls", "certificate", "secure",
+			"encrypt", "decrypt", "cipher", "key",
+		},
+		"tcp": {
+			"tcp", "socket", "connection", "port", "bind",
+			"listen", "accept", "connect", "send", "receive",
+		},
+		"udp": {
+			"udp", "datagram", "packet", "send", "receive",
+			"broadcast", "multicast", "stream",
+		},
+		"websocket": {
+			"websocket", "ws", "wss", "socket", "connection",
+			"real-time", "stream", "event", "message",
+		},
+	}
+
+	patterns, exists := networkPatterns[networkType]
+	if !exists {
+		// 如果没有预定义模式，使用网络类型作为关键词
+		patterns = []string{networkType}
+	}
+
+	// 搜索网络操作相关代码
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索网络操作模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "network_operation",
+						"security_aspect": securityAspect,
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"network_type":   networkType,
+		"security_aspect": securityAspect,
+		"results":         searchResults,
+		"total_results":   len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabConfigAnalysis 执行配置分析
+func executeGitLabConfigAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	configType, ok := args["config_type"].(string)
+	if !ok || configType == "" {
+		return GitLabMCPResult{Error: "config_type参数缺失或类型错误"}
+	}
+
+	filePattern, _ := args["file_pattern"].(string)
+
+	// 定义配置文件模式
+	configPatterns := map[string][]string{
+		"security": {
+			"security", "auth", "permission", "access", "cors",
+			"ssl", "tls", "certificate", "encryption",
+		},
+		"database": {
+			"database", "db", "connection", "url", "host",
+			"port", "username", "password", "schema",
+		},
+		"network": {
+			"network", "host", "port", "url", "endpoint",
+			"proxy", "firewall", "cors", "origin",
+		},
+		"application": {
+			"application", "app", "server", "port", "host",
+			"debug", "log", "level", "environment",
+		},
+	}
+
+	patterns, exists := configPatterns[configType]
+	if !exists {
+		// 如果没有预定义模式，使用配置类型作为关键词
+		patterns = []string{configType}
+	}
+
+	// 搜索配置文件
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件模式过滤
+		if filePattern != "" {
+			matched := false
+			patterns := strings.Split(filePattern, ",")
+			for _, pattern := range patterns {
+				pattern = strings.TrimSpace(pattern)
+				if strings.Contains(item.Path, pattern) || strings.HasSuffix(item.Path, pattern) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索配置模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 2),
+						"type":        "config",
+					})
+				}
+			}
+		}
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"config_type":  configType,
+		"file_pattern": filePattern,
+		"results":      searchResults,
+		"total_results": len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// FunctionCallInfo 函数调用信息
+type FunctionCallInfo struct {
+	FunctionName string `json:"function_name"`
+	FilePath     string `json:"file_path"`
+	LineNumber   int    `json:"line_number"`
+	Context      string `json:"context"`
+	Depth        int    `json:"depth"`
+	IsDefinition bool   `json:"is_definition"`
+}
+
+// RecursiveAnalysisResult 递归分析结果
+type RecursiveAnalysisResult struct {
+	StartFunction    string              `json:"start_function"`
+	StartFilePath    string              `json:"start_file_path"`
+	CallChain        []FunctionCallInfo  `json:"call_chain"`
+	SecurityIssues   []map[string]interface{} `json:"security_issues"`
+	MaxDepth         int                 `json:"max_depth"`
+	TotalFunctions   int                 `json:"total_functions"`
+	CrossFileCalls   int                 `json:"cross_file_calls"`
+}
+
+// executeGitLabRecursiveFunctionAnalysis 执行递归函数调用分析
+func executeGitLabRecursiveFunctionAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	}
+
+	functionName, ok := args["function_name"].(string)
+	if !ok || functionName == "" {
+		return GitLabMCPResult{Error: "function_name参数缺失或类型错误"}
+	}
+
+	maxDepth := 3 // 默认最大深度
+	if depth, ok := args["max_depth"].(float64); ok {
+		maxDepth = int(depth)
+	}
+
+	includeSecurityAnalysis := true
+	if security, ok := args["include_security_analysis"].(bool); ok {
+		includeSecurityAnalysis = security
+	}
+
+	analyzeCrossFileCalls := true
+	if crossFile, ok := args["analyze_cross_file_calls"].(bool); ok {
+		analyzeCrossFileCalls = crossFile
+	}
+
+	// 初始化结果
+	result := &RecursiveAnalysisResult{
+		StartFunction:  functionName,
+		StartFilePath:  filePath,
+		MaxDepth:       maxDepth,
+		CallChain:      []FunctionCallInfo{},
+		SecurityIssues: []map[string]interface{}{},
+	}
+
+	// 开始递归分析
+	analyzedFunctions := make(map[string]bool) // 防止循环调用
+	analyzeFunctionRecursively(git, projectID, functionName, filePath, 0, maxDepth, result, analyzedFunctions, includeSecurityAnalysis, analyzeCrossFileCalls)
+
+	resultJSON, _ := json.Marshal(result)
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// analyzeFunctionRecursively 递归分析函数
+func analyzeFunctionRecursively(git *gitlab.Client, projectID int, functionName, filePath string, currentDepth, maxDepth int, result *RecursiveAnalysisResult, analyzedFunctions map[string]bool, includeSecurityAnalysis, analyzeCrossFileCalls bool) {
+	// 防止无限递归
+	if currentDepth >= maxDepth {
+		return
+	}
+
+	// 创建函数标识符
+	functionKey := fmt.Sprintf("%s:%s", filePath, functionName)
+	if analyzedFunctions[functionKey] {
+		return // 已经分析过，避免循环
+	}
+	analyzedFunctions[functionKey] = true
+
+	// 获取文件内容
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String("main"),
+	})
+	if err != nil {
+		return
+	}
+
+	// 解码Base64内容
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(content), "\n")
+	
+	// 查找函数定义
+	var functionStart, functionEnd int
+	var functionContent string
+	
+	for i, line := range lines {
+		if strings.Contains(line, "func "+functionName) || strings.Contains(line, "func("+functionName) {
+			functionStart = i + 1
+			functionEnd = findFunctionEnd(lines, i)
+			functionContent = strings.Join(lines[functionStart-1:functionEnd], "\n")
+			break
+		}
+	}
+
+	if functionContent == "" {
+		return // 函数未找到
+	}
+
+	// 添加到调用链
+	callInfo := FunctionCallInfo{
+		FunctionName: functionName,
+		FilePath:     filePath,
+		LineNumber:   functionStart,
+		Context:      getLineContext(lines, functionStart-1, 3),
+		Depth:        currentDepth,
+		IsDefinition: true,
+	}
+	result.CallChain = append(result.CallChain, callInfo)
+	result.TotalFunctions++
+
+	// 安全分析
+	if includeSecurityAnalysis {
+		securityIssues := analyzeFunctionSecurity(functionContent, functionName, filePath, functionStart)
+		for _, issue := range securityIssues {
+			issue["depth"] = currentDepth
+			issue["function_name"] = functionName
+			result.SecurityIssues = append(result.SecurityIssues, issue)
+		}
+	}
+
+	// 查找函数调用
+	calledFunctions := extractFunctionCalls(functionContent, functionName)
+	
+	for _, calledFunc := range calledFunctions {
+		// 递归分析被调用的函数
+		if analyzeCrossFileCalls {
+			// 尝试在不同文件中查找函数定义
+			calledFuncPath := findFunctionDefinition(git, projectID, calledFunc, filePath)
+			if calledFuncPath != "" {
+				result.CrossFileCalls++
+				analyzeFunctionRecursively(git, projectID, calledFunc, calledFuncPath, currentDepth+1, maxDepth, result, analyzedFunctions, includeSecurityAnalysis, analyzeCrossFileCalls)
+			} else {
+				// 在当前文件中查找
+				analyzeFunctionRecursively(git, projectID, calledFunc, filePath, currentDepth+1, maxDepth, result, analyzedFunctions, includeSecurityAnalysis, analyzeCrossFileCalls)
+			}
+		} else {
+			// 只在当前文件中查找
+			analyzeFunctionRecursively(git, projectID, calledFunc, filePath, currentDepth+1, maxDepth, result, analyzedFunctions, includeSecurityAnalysis, analyzeCrossFileCalls)
+		}
+	}
+}
+
+// extractFunctionCalls 从函数内容中提取函数调用
+func extractFunctionCalls(functionContent, currentFunction string) []string {
+	var calledFunctions []string
+	lines := strings.Split(functionContent, "\n")
+	
+	// 简单的函数调用模式匹配
+	// callPatterns := []string{
+	// 	`(\w+)\(`,           // 基本函数调用
+	// 	`(\w+)\.(\w+)\(`,    // 方法调用
+	// 	`(\w+)\[`,           // 数组访问
+	// 	`(\w+)\.(\w+)`,      // 属性访问
+	// }
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") {
+			continue
+		}
+		
+		// 简单的函数调用检测
+		// 这里使用简单的字符串匹配，实际项目中可以使用正则表达式
+		if strings.Contains(line, "(") && !strings.Contains(line, "func ") {
+			// 提取可能的函数名
+			parts := strings.Split(line, "(")
+			if len(parts) > 0 {
+				funcPart := strings.TrimSpace(parts[0])
+				// 提取最后一个部分作为函数名
+				funcParts := strings.Split(funcPart, ".")
+				if len(funcParts) > 0 {
+					funcName := strings.TrimSpace(funcParts[len(funcParts)-1])
+					if funcName != "" && funcName != currentFunction && !contains(calledFunctions, funcName) {
+						calledFunctions = append(calledFunctions, funcName)
+					}
+				}
+			}
+		}
+	}
+	
+	return calledFunctions
+}
+
+// findFunctionDefinition 在项目中查找函数定义
+func findFunctionDefinition(git *gitlab.Client, projectID int, functionName, currentFilePath string) string {
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return ""
+	}
+
+	// 优先搜索同目录下的文件
+	currentDir := getDirectoryFromPath(currentFilePath)
+	
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+		
+		// 优先检查同目录下的文件
+		if getDirectoryFromPath(item.Path) == currentDir {
+			if hasFunctionDefinition(git, projectID, item.Path, functionName) {
+				return item.Path
+			}
+		}
+	}
+	
+	// 然后搜索其他文件
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+		
+		if getDirectoryFromPath(item.Path) != currentDir {
+			if hasFunctionDefinition(git, projectID, item.Path, functionName) {
+				return item.Path
+			}
+		}
+	}
+	
+	return ""
+}
+
+// hasFunctionDefinition 检查文件中是否包含函数定义
+func hasFunctionDefinition(git *gitlab.Client, projectID int, filePath, functionName string) bool {
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String("main"),
+	})
+	if err != nil {
+		return false
+	}
+
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return false
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "func "+functionName) || strings.Contains(line, "func("+functionName) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// analyzeFunctionSecurity 分析函数的安全性
+func analyzeFunctionSecurity(functionContent, functionName, filePath string, startLine int) []map[string]interface{} {
+	var issues []map[string]interface{}
+	lines := strings.Split(functionContent, "\n")
+	
+	// 安全模式检测
+	securityPatterns := map[string][]string{
+		"sql_injection": {"SELECT", "INSERT", "UPDATE", "DELETE", "WHERE", "UNION", "query(", "exec("},
+		"command_injection": {"exec(", "system(", "shell_exec(", "passthru(", "os.Exec", "subprocess"},
+		"xss": {"innerHTML", "outerHTML", "document.write", "eval(", "<script>", "javascript:"},
+		"path_traversal": {"../", "..\\", "~", "/etc/", "C:\\", "file://"},
+		"ssrf": {"http.Get", "http.Post", "fetch(", "axios.get", "urllib.request"},
+		"auth_bypass": {"admin", "root", "password", "token", "secret", "bypass", "skip"},
+	}
+	
+	for lineNum, line := range lines {
+		line = strings.ToLower(line)
+		for issueType, patterns := range securityPatterns {
+			for _, pattern := range patterns {
+				if strings.Contains(line, strings.ToLower(pattern)) {
+					issues = append(issues, map[string]interface{}{
+						"type":        issueType,
+						"pattern":     pattern,
+						"line_number": startLine + lineNum,
+						"file_path":   filePath,
+						"function":    functionName,
+						"context":     getLineContext(lines, lineNum, 2),
+						"severity":    determineSeverity(pattern, issueType),
+					})
+				}
+			}
+		}
+	}
+	
+	return issues
+}
+
+// getDirectoryFromPath 从文件路径中提取目录
+func getDirectoryFromPath(filePath string) string {
+	lastSlash := strings.LastIndex(filePath, "/")
+	if lastSlash == -1 {
+		return ""
+	}
+	return filePath[:lastSlash]
+}
+
+// contains 检查切片是否包含元素
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+} 

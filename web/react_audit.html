@@ -78,6 +78,71 @@
             max-height: 300px;
             overflow-y: auto;
         }
+        .tool-results {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #f59e0b;
+        }
+        .tool-result {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #e5e7eb;
+        }
+        .tool-header {
+            background: #3b82f6;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .tool-args {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .tool-output {
+            background: #ecfdf5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .tool-raw-output {
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+        }
+        .tool-parsed-output {
+            background: #fef7ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e9d5ff;
+        }
+        .tool-raw-output pre,
+        .tool-parsed-output pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
         .loading {
             text-align: center;
             padding: 40px;
@@ -148,6 +213,34 @@
                                 <div class="thought"><strong>思考：</strong>${escapeHtml(step.thought || '')}</div>
                                 ${step.action ? `<div class="action"><strong>工具调用：</strong>${escapeHtml(JSON.stringify({action: step.action, arguments: step.action_args}, null, 2))}</div>` : ''}
                                 ${step.observation ? `<div class="observation"><strong>观察结果：</strong>${escapeHtml(step.observation)}</div>` : ''}
+                                ${step.tool_results && step.tool_results.length > 0 ? `
+                                    <div class="tool-results">
+                                        <strong>详细工具调用结果：</strong>
+                                        ${step.tool_results.map((toolResult, toolIndex) => `
+                                            <div class="tool-result">
+                                                <div class="tool-header">
+                                                    <strong>工具 ${toolIndex + 1}：</strong>${escapeHtml(toolResult.tool_name || '未知工具')}
+                                                </div>
+                                                <div class="tool-args">
+                                                    <strong>参数：</strong>${escapeHtml(JSON.stringify(toolResult.tool_args || {}, null, 2))}
+                                                </div>
+                                                <div class="tool-output">
+                                                    <strong>输出长度：</strong>${toolResult.output_length || 0} 字符
+                                                </div>
+                                                <div class="tool-raw-output">
+                                                    <strong>原始输出：</strong>
+                                                    <pre>${escapeHtml(toolResult.raw_output || '')}</pre>
+                                                </div>
+                                                ${toolResult.parsed_output ? `
+                                                    <div class="tool-parsed-output">
+                                                        <strong>结构化输出：</strong>
+                                                        <pre>${escapeHtml(JSON.stringify(toolResult.parsed_output, null, 2))}</pre>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
                             </div>
                         `;
                     });
