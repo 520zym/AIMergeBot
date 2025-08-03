@@ -20,7 +20,6 @@ type Config struct {
 	Projects []struct {
 		ID   int    `yaml:"id"`
 		Name string `yaml:"name"`
-		Path string `yaml:"path"`
 	} `yaml:"projects"`
 	EnableWebhook       bool     `yaml:"enable_webhook"`
 	EnableMRComment     bool     `yaml:"enable_mr_comment"`
@@ -32,8 +31,10 @@ type Config struct {
 }
 
 type MCPConfig struct {
-	Enabled   bool `yaml:"enabled"`
-	MaxSteps  int  `yaml:"max_steps"`
+	Enabled   bool   `yaml:"enabled"`
+	Mode      string `yaml:"mode"` // full, simplified, hybrid
+	MaxSteps  int    `yaml:"max_steps"`
+	Verbose   bool   `yaml:"verbose_logging"`
 }
 
 type ReActConfig struct {
@@ -41,6 +42,30 @@ type ReActConfig struct {
 	Model       string  `yaml:"model"`
 	Temperature float64 `yaml:"temperature"`
 	MaxRetries  int     `yaml:"max_retries"`
+	MaxSteps    int     `yaml:"max_steps"`
+}
+
+// GetMCPMode 获取MCP模式，提供默认值
+func (c *MCPConfig) GetMCPMode() string {
+	if c.Mode == "" {
+		return "simplified" // 默认使用简化模式
+	}
+	return c.Mode
+}
+
+// IsSimplifiedMode 检查是否为简化模式
+func (c *MCPConfig) IsSimplifiedMode() bool {
+	return c.GetMCPMode() == "simplified"
+}
+
+// IsFullMode 检查是否为完整模式
+func (c *MCPConfig) IsFullMode() bool {
+	return c.GetMCPMode() == "full"
+}
+
+// IsHybridMode 检查是否为混合模式
+func (c *MCPConfig) IsHybridMode() bool {
+	return c.GetMCPMode() == "hybrid"
 }
 
 func LoadConfig(path string) (*Config, error) {

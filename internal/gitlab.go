@@ -237,8 +237,8 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 						"branch":       mrDetail.SourceBranch,
 					}
 					
-					// 创建支持GitLab API的ReAct审计器
-					auditor := NewReActAuditorWithGitLab(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, p.ID)
+					// 创建支持GitLab API的ReAct审计器，传入MCP模式
+					auditor := NewReActAuditorWithConfig(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, p.ID, cfg.MCP.GetMCPMode(), cfg.ReAct.MaxSteps, cfg.ReAct.Temperature, cfg.ReAct.MaxRetries, cfg.MCP.Verbose)
 					
 					// 进行ReAct审计（不需要克隆仓库）
 					reactResult, err = auditor.AuditWithReAct(diff, projectInfo)
@@ -253,7 +253,7 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 					} else {
 						// 使用ReAct结果
 						issues = reactResult.Issues
-						log.Printf("ReAct审计完成，步骤数: %d", len(reactResult.Steps))
+						log.Printf("ReAct审计完成，步骤数: %d, MCP模式: %s", len(reactResult.Steps), cfg.MCP.GetMCPMode())
 						
 						// 保存ReAct审计结果
 						if err := storage.SaveReActAuditResult(p.ID, mr.IID, reactResult); err != nil {

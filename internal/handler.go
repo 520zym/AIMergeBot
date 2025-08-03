@@ -96,8 +96,23 @@ func RegisterResultRoute(r *gin.Engine, storage *Storage, globalConfig *atomic.V
 	
 	// 新增：MCP工具列表接口
 	r.GET("/mcp_tools", func(c *gin.Context) {
-		tools := GetAvailableGitLabTools()
-		c.JSON(200, gin.H{"tools": tools})
+		config := globalConfig.Load().(*Config)
+		var tools []GitLabMCPTool
+		
+		switch config.MCP.GetMCPMode() {
+		case "simplified":
+			tools = GetAvailableSimplifiedGitLabTools()
+		case "full":
+			tools = GetAvailableGitLabTools()
+		default:
+			tools = GetAvailableSimplifiedGitLabTools() // 默认使用简化版
+		}
+		
+		c.JSON(200, gin.H{
+			"tools": tools,
+			"mode": config.MCP.GetMCPMode(),
+			"description": "当前使用的MCP工具集",
+		})
 	})
 	
 	// 新增：重新分析MR接口（用于测试ReAct功能）
@@ -168,8 +183,8 @@ func RegisterResultRoute(r *gin.Engine, storage *Storage, globalConfig *atomic.V
 				}
 				
 				// 创建支持GitLab API的ReAct审计器
-				auditor := NewReActAuditorWithGitLab(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, req.ProjectID)
-				log.Printf("ReAct审计器创建成功 - 模型: %s", cfg.ReAct.Model)
+				auditor := NewReActAuditorWithConfig(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, req.ProjectID, cfg.MCP.GetMCPMode(), cfg.ReAct.MaxSteps, cfg.ReAct.Temperature, cfg.ReAct.MaxRetries, cfg.MCP.Verbose)
+				log.Printf("ReAct审计器创建成功 - 模型: %s, MCP模式: %s, 最大步骤: %d, 温度: %.2f, 最大重试: %d", cfg.ReAct.Model, cfg.MCP.GetMCPMode(), cfg.ReAct.MaxSteps, cfg.ReAct.Temperature, cfg.ReAct.MaxRetries)
 				
 				// 进行ReAct审计（不需要克隆仓库）
 				log.Printf("开始ReAct审计...")
@@ -501,7 +516,7 @@ func WebhookHandler(cfg *Config, storage *Storage) gin.HandlerFunc {
 			}
 			
 			// 创建支持GitLab API的ReAct审计器
-			auditor := NewReActAuditorWithGitLab(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, projectID)
+			auditor := NewReActAuditorWithConfig(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.ReAct.Model, git, projectID, cfg.MCP.GetMCPMode(), cfg.ReAct.MaxSteps, cfg.ReAct.Temperature, cfg.ReAct.MaxRetries, cfg.MCP.Verbose)
 			
 			// 进行ReAct审计（不需要克隆仓库）
 			reactResult, err = auditor.AuditWithReAct(diff, projectInfo)
