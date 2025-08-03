@@ -32,10 +32,8 @@ type Config struct {
 }
 
 type MCPConfig struct {
-	Enabled       bool   `yaml:"enabled"`
-	TempRepoPath  string `yaml:"temp_repo_path"`
-	MaxSteps      int    `yaml:"max_steps"`
-	VerboseLogging bool  `yaml:"verbose_logging"`
+	Enabled   bool `yaml:"enabled"`
+	MaxSteps  int  `yaml:"max_steps"`
 }
 
 type ReActConfig struct {

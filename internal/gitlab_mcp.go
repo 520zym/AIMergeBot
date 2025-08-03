@@ -10,22 +10,6 @@ import (
 	"github.com/xanzy/go-gitlab"
 )
 
-// max 返回两个整数中的较大值
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// min 返回两个整数中的较小值
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // GitLabMCPTool 定义基于GitLab API的MCP工具结构
 type GitLabMCPTool struct {
 	Name        string                 `json:"name"`
@@ -45,29 +29,11 @@ type GitLabMCPResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// GitLabMCPTools 定义基于GitLab API的MCP工具
+// GitLabMCPTools 定义基于GitLab API的MCP工具（扩展版，包含更多核心工具）
 var GitLabMCPTools = []GitLabMCPTool{
 	{
-		Name:        "gitlab_search_code",
-		Description: "在GitLab仓库中搜索指定的文本或模式",
-		InputSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"query": map[string]interface{}{
-					"type":        "string",
-					"description": "要搜索的文本或模式",
-				},
-				"file_type": map[string]interface{}{
-					"type":        "string",
-					"description": "文件类型过滤（如go、py、js）",
-				},
-			},
-			"required": []string{"query"},
-		},
-	},
-	{
 		Name:        "gitlab_file_content",
-		Description: "获取GitLab仓库中指定文件的内容",
+		Description: "获取GitLab仓库中指定文件的完整内容，用于分析函数定义、变量声明、导入等上下文信息",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -84,161 +50,205 @@ var GitLabMCPTools = []GitLabMCPTool{
 		},
 	},
 	{
-		Name:        "gitlab_project_files",
-		Description: "列出GitLab仓库中的文件和目录",
+		Name:        "gitlab_file_info",
+		Description: "获取GitLab仓库中指定文件的基本信息（行数、大小、类型等），用于了解文件结构后再进行详细分析",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"path": map[string]interface{}{
+				"file_path": map[string]interface{}{
 					"type":        "string",
-					"description": "目录路径（可选，默认为根目录）",
+					"description": "文件路径（相对于仓库根目录）",
 				},
 				"ref": map[string]interface{}{
 					"type":        "string",
 					"description": "分支或提交引用（可选，默认为默认分支）",
 				},
 			},
+			"required": []string{"file_path"},
 		},
 	},
 	{
-		Name:        "gitlab_commit_history",
-		Description: "获取GitLab仓库的提交历史",
+		Name:        "gitlab_search_code",
+		Description: "在GitLab仓库中搜索指定的文本或模式，用于查找相关函数调用、变量使用、安全模式等",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"since": map[string]interface{}{
+				"query": map[string]interface{}{
 					"type":        "string",
-					"description": "开始时间（如：2024-01-01）",
+					"description": "要搜索的文本或模式",
 				},
-				"until": map[string]interface{}{
+				"file_type": map[string]interface{}{
 					"type":        "string",
-					"description": "结束时间（如：2024-12-31）",
-				},
-				"author": map[string]interface{}{
-					"type":        "string",
-					"description": "作者过滤",
-				},
-				"path": map[string]interface{}{
-					"type":        "string",
-					"description": "特定文件路径",
+					"description": "文件类型过滤（如go、py、js）",
 				},
 			},
+			"required": []string{"query"},
 		},
 	},
 	{
-		Name:        "gitlab_mr_changes",
-		Description: "获取Merge Request的详细变更信息",
+		Name:        "gitlab_context_analysis",
+		Description: "分析代码片段的上下文关系，包括前后代码、函数调用、数据流等，用于理解代码逻辑和潜在风险",
 		InputSchema: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"mr_iid": map[string]interface{}{
+				"file_path": map[string]interface{}{
+					"type":        "string",
+					"description": "文件路径",
+				},
+				"line_number": map[string]interface{}{
 					"type":        "integer",
-					"description": "Merge Request的IID",
+					"description": "行号",
+				},
+				"context_size": map[string]interface{}{
+					"type":        "integer",
+					"description": "上下文行数（可选，默认为5）",
 				},
 			},
-			"required": []string{"mr_iid"},
+			"required": []string{"file_path", "line_number"},
+		},
+	},
+	{
+		Name:        "gitlab_function_analysis",
+		Description: "分析特定函数的完整定义、调用关系、参数传递、返回值处理等，用于深入理解函数的安全风险",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"file_path": map[string]interface{}{
+					"type":        "string",
+					"description": "文件路径",
+				},
+				"function_name": map[string]interface{}{
+					"type":        "string",
+					"description": "函数名称",
+				},
+				"include_calls": map[string]interface{}{
+					"type":        "boolean",
+					"description": "是否包含函数调用位置（可选，默认为true）",
+				},
+			},
+			"required": []string{"file_path", "function_name"},
+		},
+	},
+	{
+		Name:        "gitlab_dependency_analysis",
+		Description: "分析项目的依赖关系，包括导入的包、第三方库、版本信息等，用于识别依赖相关的安全风险",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"file_path": map[string]interface{}{
+					"type":        "string",
+					"description": "依赖文件路径（如go.mod、package.json、requirements.txt）",
+				},
+				"analysis_type": map[string]interface{}{
+					"type":        "string",
+					"description": "分析类型（dependencies、versions、security）",
+				},
+			},
+			"required": []string{"file_path"},
+		},
+	},
+	{
+		Name:        "gitlab_security_pattern_search",
+		Description: "搜索特定的安全模式，如SQL注入、XSS、命令注入、路径遍历等漏洞的常见代码模式",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"pattern_type": map[string]interface{}{
+					"type":        "string",
+					"description": "安全模式类型（sql_injection、xss、command_injection、path_traversal、ssrf、auth_bypass）",
+				},
+				"file_type": map[string]interface{}{
+					"type":        "string",
+					"description": "文件类型过滤（可选）",
+				},
+				"severity": map[string]interface{}{
+					"type":        "string",
+					"description": "严重程度过滤（high、medium、low）",
+				},
+			},
+			"required": []string{"pattern_type"},
 		},
 	},
 }
 
 // GitLabMCPExecutor 执行基于GitLab API的MCP工具调用
 func GitLabMCPExecutor(call GitLabMCPCall, git *gitlab.Client, projectID int) GitLabMCPResult {
-	// 记录工具调用开始
 	log.Printf("GitLab MCP工具调用开始 - 工具名: %s", call.ToolName)
-	
+
 	if git == nil {
 		log.Printf("GitLab MCP工具调用失败 - GitLab客户端为空")
 		return GitLabMCPResult{
 			Error: "GitLab客户端未初始化",
 		}
 	}
-	
+
 	var result GitLabMCPResult
+
 	switch call.ToolName {
 	case "gitlab_search_code":
-		log.Printf("执行gitlab_search_code工具")
 		result = executeGitLabSearchCode(call.Arguments, git, projectID)
 	case "gitlab_file_content":
-		log.Printf("执行gitlab_file_content工具")
 		result = executeGitLabFileContent(call.Arguments, git, projectID)
-	case "gitlab_project_files":
-		log.Printf("执行gitlab_project_files工具")
-		result = executeGitLabProjectFiles(call.Arguments, git, projectID)
-	case "gitlab_commit_history":
-		log.Printf("执行gitlab_commit_history工具")
-		result = executeGitLabCommitHistory(call.Arguments, git, projectID)
-	case "gitlab_mr_changes":
-		log.Printf("执行gitlab_mr_changes工具")
-		result = executeGitLabMRChanges(call.Arguments, git, projectID)
+	case "gitlab_file_info":
+		result = executeGitLabFileInfo(call.Arguments, git, projectID)
+	case "gitlab_context_analysis":
+		result = executeGitLabContextAnalysis(call.Arguments, git, projectID)
+	case "gitlab_function_analysis":
+		result = executeGitLabFunctionAnalysis(call.Arguments, git, projectID)
+	case "gitlab_dependency_analysis":
+		result = executeGitLabDependencyAnalysis(call.Arguments, git, projectID)
+	case "gitlab_security_pattern_search":
+		result = executeGitLabSecurityPatternSearch(call.Arguments, git, projectID)
 	default:
 		log.Printf("GitLab MCP工具调用失败 - 未知工具: %s", call.ToolName)
 		result = GitLabMCPResult{
-			Error: fmt.Sprintf("未知的工具: %s", call.ToolName),
+			Error: fmt.Sprintf("未知工具: %s", call.ToolName),
 		}
 	}
-	
-	// 记录工具调用结果
+
 	if result.Error != "" {
 		log.Printf("GitLab MCP工具调用失败 - 工具名: %s, 错误: %s", call.ToolName, result.Error)
 	} else {
 		log.Printf("GitLab MCP工具调用成功 - 工具名: %s, 输出长度: %d", call.ToolName, len(result.Content))
 	}
-	
+
 	return result
 }
 
-// executeGitLabSearchCode 执行GitLab代码搜索
+// executeGitLabSearchCode 执行代码搜索
 func executeGitLabSearchCode(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
 	query, ok := args["query"].(string)
-	if !ok {
-		log.Printf("gitlab_search_code工具执行失败 - query参数缺失或类型错误")
+	if !ok || query == "" {
 		return GitLabMCPResult{Error: "query参数缺失或类型错误"}
 	}
 
 	fileType, _ := args["file_type"].(string)
-	
-	log.Printf("gitlab_search_code工具执行 - 查询: %s, 文件类型: %s", query, fileType)
 
-	// 首先获取项目信息，确定默认分支
-	project, _, err := git.Projects.GetProject(projectID, nil)
+	// 获取项目信息
+	_, _, err := git.Projects.GetProject(projectID, &gitlab.GetProjectOptions{})
 	if err != nil {
-		log.Printf("gitlab_search_code工具执行失败 - 获取项目信息失败: %v", err)
 		return GitLabMCPResult{Error: fmt.Sprintf("获取项目信息失败: %v", err)}
 	}
-
-	defaultBranch := project.DefaultBranch
-	log.Printf("gitlab_search_code工具执行 - 使用默认分支: %s", defaultBranch)
 
 	// 获取项目文件列表
 	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
 		Recursive: gitlab.Bool(true),
-		Ref:       &defaultBranch,
+		Ref:       gitlab.String("main"),
 	})
 	if err != nil {
-		log.Printf("gitlab_search_code工具执行失败 - 获取文件列表失败: %v", err)
 		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
 	}
 
-	log.Printf("gitlab_search_code工具执行 - 找到 %d 个文件", len(tree))
-
 	// 搜索匹配的文件
 	var searchResults []map[string]interface{}
-	var processedFiles int
-	var codeFiles int
-	var readableFiles int
-	
 	for _, item := range tree {
 		// 跳过目录
 		if item.Type == "tree" {
 			continue
 		}
-		
-		processedFiles++
-		log.Printf("gitlab_search_code工具执行 - 处理文件: %s", item.Path)
 
 		// 检查文件类型过滤
 		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
-			log.Printf("gitlab_search_code工具执行 - 跳过非目标类型文件: %s", item.Path)
 			continue
 		}
 
@@ -252,105 +262,65 @@ func executeGitLabSearchCode(args map[string]interface{}, git *gitlab.Client, pr
 			}
 		}
 		if !isCodeFile {
-			log.Printf("gitlab_search_code工具执行 - 跳过非代码文件: %s", item.Path)
 			continue
 		}
-		
-		codeFiles++
-		log.Printf("gitlab_search_code工具执行 - 搜索代码文件: %s", item.Path)
-		
+
 		// 获取文件内容进行搜索
 		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
-			Ref: &defaultBranch,
+			Ref: gitlab.String("main"),
 		})
 		if err != nil {
-			log.Printf("gitlab_search_code工具执行 - 跳过无法读取的文件: %s, 错误: %v", item.Path, err)
 			continue
 		}
-		
-		// 检查文件编码并解码
-		var content string
-		if file.Encoding == "base64" {
-			// 解码Base64内容
-			decodedBytes, err := base64.StdEncoding.DecodeString(file.Content)
-			if err != nil {
-				log.Printf("gitlab_search_code工具执行 - 跳过Base64解码失败的文件: %s, 错误: %v", item.Path, err)
-				continue
-			}
-			content = string(decodedBytes)
-		} else {
-			content = file.Content
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
 		}
-		
-		readableFiles++
-		log.Printf("gitlab_search_code工具执行 - 成功读取文件: %s, 大小: %d 字节, 编码: %s", item.Path, len(content), file.Encoding)
-		
+
 		// 在文件内容中搜索（不区分大小写）
-		contentLower := strings.ToLower(content)
+		contentLower := strings.ToLower(string(content))
 		queryLower := strings.ToLower(query)
-		
-		// 尝试多种搜索模式
-		searchPatterns := []string{
-			queryLower,
-			strings.ReplaceAll(queryLower, ".", ""), // 移除点号
-			strings.ReplaceAll(queryLower, ".", " "), // 点号替换为空格
-		}
-		
-		found := false
-		for _, pattern := range searchPatterns {
-			if strings.Contains(contentLower, pattern) {
-				log.Printf("gitlab_search_code工具执行 - 在文件 %s 中找到匹配: %s", item.Path, pattern)
-				found = true
-				break
-			}
-		}
-		
-		if found {
+
+		if strings.Contains(contentLower, queryLower) {
 			// 找到匹配，提取上下文
-			lines := strings.Split(content, "\n")
+			lines := strings.Split(string(content), "\n")
 			var contextLines []string
 			for i, line := range lines {
 				lineLower := strings.ToLower(line)
-				for _, pattern := range searchPatterns {
-					if strings.Contains(lineLower, pattern) {
-						// 添加上下文行
-						start := max(0, i-2)
-						end := min(len(lines), i+3)
-						for j := start; j < end; j++ {
-							contextLines = append(contextLines, fmt.Sprintf("%d: %s", j+1, lines[j]))
-						}
-						break
+				if strings.Contains(lineLower, queryLower) {
+					// 添加上下文行
+					start := max(0, i-2)
+					end := min(len(lines), i+3)
+					for j := start; j < end; j++ {
+						contextLines = append(contextLines, fmt.Sprintf("%d: %s", j+1, lines[j]))
 					}
-				}
-				if len(contextLines) > 0 {
 					break
 				}
 			}
-			
+
 			searchResults = append(searchResults, map[string]interface{}{
-				"filename": item.Path,
-				"ref":      defaultBranch,
-				"content":  strings.Join(contextLines, "\n"),
-				"full_content": content,
+				"file_path": item.Path,
+				"content":   strings.Join(contextLines, "\n"),
+				"line":      "找到匹配",
 			})
-		} else {
-			log.Printf("gitlab_search_code工具执行 - 在文件 %s 中未找到匹配", item.Path)
 		}
 	}
-	
-	log.Printf("gitlab_search_code工具执行 - 统计: 处理文件=%d, 代码文件=%d, 可读文件=%d", processedFiles, codeFiles, readableFiles)
 
-	resultJSON, _ := json.MarshalIndent(searchResults, "", "  ")
-	log.Printf("gitlab_search_code工具执行成功 - 找到 %d 个结果", len(searchResults))
-	
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"query":   query,
+		"results": searchResults,
+		"count":   len(searchResults),
+	})
+
 	return GitLabMCPResult{Content: string(resultJSON)}
 }
 
-// executeGitLabFileContent 执行GitLab文件内容获取
+// executeGitLabFileContent 执行文件内容获取
 func executeGitLabFileContent(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
 	filePath, ok := args["file_path"].(string)
-	if !ok {
-		log.Printf("gitlab_file_content工具执行失败 - file_path参数缺失或类型错误")
+	if !ok || filePath == "" {
 		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
 	}
 
@@ -359,151 +329,612 @@ func executeGitLabFileContent(args map[string]interface{}, git *gitlab.Client, p
 		ref = "main" // 默认分支
 	}
 
-	log.Printf("gitlab_file_content工具执行 - 文件路径: %s, 分支: %s", filePath, ref)
-
 	// 获取文件内容
 	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
 		Ref: &ref,
 	})
 	if err != nil {
-		log.Printf("gitlab_file_content工具执行失败 - 获取文件失败: %v", err)
 		return GitLabMCPResult{Error: fmt.Sprintf("获取文件失败: %v", err)}
 	}
 
-	// 检查文件编码
-	var content string
-	if file.Encoding == "base64" {
-		// 解码Base64内容
-		decodedBytes, err := base64.StdEncoding.DecodeString(file.Content)
-		if err != nil {
-			log.Printf("gitlab_file_content工具执行失败 - Base64解码失败: %v", err)
-			return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
-		}
-		content = string(decodedBytes)
-		log.Printf("gitlab_file_content工具执行 - 成功解码Base64内容")
-	} else {
-		content = file.Content
+	// 解码Base64内容
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
 	}
 
-	log.Printf("gitlab_file_content工具执行成功 - 文件大小: %d 字节, 编码: %s", len(content), file.Encoding)
-	return GitLabMCPResult{Content: content}
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"file_path": filePath,
+		"ref":       ref,
+		"content":   string(content),
+		"size":      len(content),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
 }
 
-// executeGitLabProjectFiles 执行GitLab项目文件列表
-func executeGitLabProjectFiles(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	path, _ := args["path"].(string)
-	ref, _ := args["ref"].(string)
-	if ref == "" {
-		ref = "main" // 默认分支
+// executeGitLabFileInfo 执行文件信息获取
+func executeGitLabFileInfo(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
 	}
 
-	log.Printf("gitlab_project_files工具执行 - 路径: %s, 分支: %s", path, ref)
+	ref := "main" // 默认分支
+	if r, ok := args["ref"].(string); ok && r != "" {
+		ref = r
+	}
 
-	// 获取文件列表
-	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
-		Path: &path,
-		Ref:  &ref,
+	// 获取项目信息
+	_, _, err := git.Projects.GetProject(projectID, &gitlab.GetProjectOptions{})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取项目信息失败: %v", err)}
+	}
+
+	// 获取文件内容
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String(ref),
 	})
 	if err != nil {
-		log.Printf("gitlab_project_files工具执行失败 - 获取文件列表失败: %v", err)
-		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+		return GitLabMCPResult{Error: fmt.Sprintf("无法找到文件 %s，请检查文件路径是否正确", filePath)}
 	}
 
-	// 格式化文件列表
-	var files []map[string]interface{}
-	for _, item := range tree {
-		files = append(files, map[string]interface{}{
-			"name":     item.Name,
-			"path":     item.Path,
-			"type":     item.Type,
-			"mode":     item.Mode,
-		})
-	}
-
-	resultJSON, _ := json.MarshalIndent(files, "", "  ")
-	log.Printf("gitlab_project_files工具执行成功 - 找到 %d 个文件", len(files))
-	
-	return GitLabMCPResult{Content: string(resultJSON)}
-}
-
-// executeGitLabCommitHistory 执行GitLab提交历史
-func executeGitLabCommitHistory(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	since, _ := args["since"].(string)
-	until, _ := args["until"].(string)
-	author, _ := args["author"].(string)
-	path, _ := args["path"].(string)
-
-	log.Printf("gitlab_commit_history工具执行 - since: %s, until: %s, author: %s, path: %s", since, until, author, path)
-
-	// 构建选项
-	opts := &gitlab.ListCommitsOptions{}
-	if path != "" {
-		opts.Path = &path
-	}
-	// 注意：GitLab API的Since和Until参数可能需要时间格式转换
-	// 这里简化处理，只使用Path参数
-
-	// 获取提交历史
-	commits, _, err := git.Commits.ListCommits(projectID, opts)
+	// 解码Base64内容以计算行数
+	content, err := base64.StdEncoding.DecodeString(file.Content)
 	if err != nil {
-		log.Printf("gitlab_commit_history工具执行失败 - 获取提交历史失败: %v", err)
-		return GitLabMCPResult{Error: fmt.Sprintf("获取提交历史失败: %v", err)}
+		return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
 	}
 
-	// 格式化提交历史
-	var commitList []map[string]interface{}
-	for _, commit := range commits {
-		commitInfo := map[string]interface{}{
-			"id":      commit.ID,
-			"title":   commit.Title,
-			"author":  commit.AuthorName,
-			"date":    commit.CreatedAt,
-			"message": commit.Message,
-		}
-		commitList = append(commitList, commitInfo)
+	// 计算行数
+	lines := strings.Split(string(content), "\n")
+	lineCount := len(lines)
+
+	// 获取文件扩展名
+	fileExt := ""
+	if lastDot := strings.LastIndex(filePath, "."); lastDot != -1 {
+		fileExt = filePath[lastDot+1:]
 	}
 
-	resultJSON, _ := json.MarshalIndent(commitList, "", "  ")
-	log.Printf("gitlab_commit_history工具执行成功 - 找到 %d 个提交", len(commitList))
-	
-	return GitLabMCPResult{Content: string(resultJSON)}
-}
-
-// executeGitLabMRChanges 执行GitLab MR变更详情
-func executeGitLabMRChanges(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
-	mrIID, ok := args["mr_iid"].(float64) // JSON中的数字会被解析为float64
-	if !ok {
-		log.Printf("gitlab_mr_changes工具执行失败 - mr_iid参数缺失或类型错误")
-		return GitLabMCPResult{Error: "mr_iid参数缺失或类型错误"}
+	// 判断文件类型
+	fileType := "unknown"
+	codeExtensions := map[string]string{
+		"go": "Go", "py": "Python", "js": "JavaScript", "ts": "TypeScript",
+		"java": "Java", "c": "C", "cpp": "C++", "h": "Header", "hpp": "C++ Header",
+		"cs": "C#", "php": "PHP", "rb": "Ruby", "rs": "Rust", "swift": "Swift",
+		"kt": "Kotlin", "scala": "Scala", "sh": "Shell", "bash": "Bash",
+		"yaml": "YAML", "yml": "YAML", "json": "JSON", "xml": "XML",
+		"html": "HTML", "css": "CSS", "md": "Markdown", "txt": "Text",
+	}
+	if lang, exists := codeExtensions[fileExt]; exists {
+		fileType = lang
 	}
 
-	log.Printf("gitlab_mr_changes工具执行 - MR IID: %d", int(mrIID))
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"file_path":   filePath,
+		"ref":         ref,
+		"file_name":   file.FileName,
+		"file_size":   file.Size,
+		"line_count":  lineCount,
+		"file_type":   fileType,
+		"file_ext":    fileExt,
+		"encoding":    file.Encoding,
+		"content_preview": func() string {
+			if len(content) > 200 {
+				return string(content[:200]) + "..."
+			}
+			return string(content)
+		}(),
+	})
 
-	// 获取MR变更详情
-	changes, _, err := git.MergeRequests.GetMergeRequestChanges(projectID, int(mrIID), &gitlab.GetMergeRequestChangesOptions{})
-	if err != nil {
-		log.Printf("gitlab_mr_changes工具执行失败 - 获取MR变更失败: %v", err)
-		return GitLabMCPResult{Error: fmt.Sprintf("获取MR变更失败: %v", err)}
-	}
-
-	// 格式化变更信息
-	var changeList []map[string]interface{}
-	for _, change := range changes.Changes {
-		changeInfo := map[string]interface{}{
-			"old_path": change.OldPath,
-			"new_path": change.NewPath,
-			"diff":     change.Diff,
-		}
-		changeList = append(changeList, changeInfo)
-	}
-
-	resultJSON, _ := json.MarshalIndent(changeList, "", "  ")
-	log.Printf("gitlab_mr_changes工具执行成功 - 找到 %d 个变更", len(changeList))
-	
 	return GitLabMCPResult{Content: string(resultJSON)}
 }
 
 // GetAvailableGitLabTools 获取可用的GitLab MCP工具列表
 func GetAvailableGitLabTools() []GitLabMCPTool {
 	return GitLabMCPTools
+}
+
+// executeGitLabContextAnalysis 执行上下文分析
+func executeGitLabContextAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	}
+
+	lineNumber, ok := args["line_number"].(float64)
+	if !ok {
+		return GitLabMCPResult{Error: "line_number参数缺失或类型错误"}
+	}
+
+	contextSize := 5 // 默认上下文行数
+	if size, ok := args["context_size"].(float64); ok {
+		contextSize = int(size)
+	}
+
+	// 获取项目信息
+	_, _, err := git.Projects.GetProject(projectID, &gitlab.GetProjectOptions{})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取项目信息失败: %v", err)}
+	}
+
+	// 获取文件内容
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("无法找到文件 %s，请检查文件路径是否正确", filePath)}
+	}
+
+	// 解码Base64内容
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
+	}
+
+	// 分析上下文
+	lines := strings.Split(string(content), "\n")
+	lineIndex := int(lineNumber) - 1
+	totalLines := len(lines)
+
+	// 智能行号调整：如果请求的行号超出范围，提供更好的处理策略
+	var adjustedLineNumber int
+	var adjustmentInfo string
+	var shouldReturnFullContent bool
+	
+	if lineIndex < 0 {
+		// 如果请求的行号小于1，返回文件开头的内容
+		adjustedLineNumber = 1
+		lineIndex = 0
+		adjustmentInfo = fmt.Sprintf("请求的行号 %d 小于1，已调整为第1行", int(lineNumber))
+		shouldReturnFullContent = totalLines <= 20 // 如果文件很小，返回完整内容
+	} else if lineIndex >= totalLines {
+		// 如果请求的行号超出范围，返回文件末尾的内容
+		adjustedLineNumber = totalLines
+		lineIndex = totalLines - 1
+		adjustmentInfo = fmt.Sprintf("请求的行号 %d 超出文件范围（文件共%d行），已调整为最后一行", int(lineNumber), totalLines)
+		shouldReturnFullContent = totalLines <= 20 // 如果文件很小，返回完整内容
+	} else {
+		adjustedLineNumber = int(lineNumber)
+		shouldReturnFullContent = false
+	}
+
+	// 构建结果
+	resultData := map[string]interface{}{
+		"file_path":     filePath,
+		"line_number":   adjustedLineNumber,
+		"context_size":  contextSize,
+		"total_lines":   totalLines,
+	}
+
+	// 如果有行号调整，添加调整信息
+	if adjustmentInfo != "" {
+		resultData["adjustment_info"] = adjustmentInfo
+		resultData["original_line_number"] = int(lineNumber)
+	}
+
+	// 根据情况决定返回的内容
+	if shouldReturnFullContent {
+		// 对于小文件或行号调整的情况，返回完整内容
+		resultData["context"] = string(content)
+		resultData["context_start"] = 1
+		resultData["context_end"] = totalLines
+		resultData["target_line"] = lines[lineIndex]
+		resultData["full_content_returned"] = true
+		resultData["reason"] = "文件较小或行号调整，返回完整内容以便分析"
+	} else {
+		// 正常情况，返回指定行的上下文
+		start := max(0, lineIndex-contextSize)
+		end := min(len(lines), lineIndex+contextSize+1)
+
+		contextLines := lines[start:end]
+		contextContent := strings.Join(contextLines, "\n")
+
+		resultData["context"] = contextContent
+		resultData["context_start"] = start + 1
+		resultData["context_end"] = end
+		resultData["target_line"] = lines[lineIndex]
+		resultData["full_content_returned"] = false
+	}
+
+	resultJSON, _ := json.Marshal(resultData)
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// 辅助函数
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 } 
+
+// executeGitLabFunctionAnalysis 执行函数分析
+func executeGitLabFunctionAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	}
+
+	functionName, ok := args["function_name"].(string)
+	if !ok || functionName == "" {
+		return GitLabMCPResult{Error: "function_name参数缺失或类型错误"}
+	}
+
+	includeCalls := true
+	if calls, ok := args["include_calls"].(bool); ok {
+		includeCalls = calls
+	}
+
+	// 获取文件内容
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("无法找到文件 %s，请检查文件路径是否正确", filePath)}
+	}
+
+	// 解码Base64内容
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
+	}
+
+	// 分析函数
+	lines := strings.Split(string(content), "\n")
+	var functionInfo map[string]interface{}
+	var callLocations []map[string]interface{}
+
+	// 查找函数定义
+	for i, line := range lines {
+		if strings.Contains(line, "func "+functionName) || strings.Contains(line, "func("+functionName) {
+			// 找到函数定义
+			startLine := i + 1
+			endLine := findFunctionEnd(lines, i)
+			
+			functionContent := strings.Join(lines[startLine-1:endLine], "\n")
+			
+			functionInfo = map[string]interface{}{
+				"function_name": functionName,
+				"start_line":    startLine,
+				"end_line":      endLine,
+				"definition":    functionContent,
+				"parameters":    extractFunctionParameters(line),
+				"return_type":   extractReturnType(line),
+			}
+			break
+		}
+	}
+
+	// 查找函数调用
+	if includeCalls {
+		for i, line := range lines {
+			if strings.Contains(line, functionName+"(") && !strings.Contains(line, "func "+functionName) {
+				callLocations = append(callLocations, map[string]interface{}{
+					"line_number": i + 1,
+					"context":     getLineContext(lines, i, 2),
+					"call":        strings.TrimSpace(line),
+				})
+			}
+		}
+	}
+
+	resultData := map[string]interface{}{
+		"file_path": filePath,
+		"function":  functionInfo,
+		"calls":     callLocations,
+		"total_calls": len(callLocations),
+	}
+
+	resultJSON, _ := json.Marshal(resultData)
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabSecurityPatternSearch 执行安全模式搜索
+func executeGitLabSecurityPatternSearch(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	patternType, ok := args["pattern_type"].(string)
+	if !ok || patternType == "" {
+		return GitLabMCPResult{Error: "pattern_type参数缺失或类型错误"}
+	}
+
+	fileType, _ := args["file_type"].(string)
+	severity, _ := args["severity"].(string)
+
+	// 定义安全模式
+	securityPatterns := map[string][]string{
+		"sql_injection": {
+			"SELECT", "INSERT", "UPDATE", "DELETE", "WHERE", "UNION",
+			"query(", "exec(", "Execute(", "QueryRow(",
+		},
+		"xss": {
+			"innerHTML", "outerHTML", "document.write", "eval(",
+			"<script>", "javascript:", "onload=", "onerror=",
+		},
+		"command_injection": {
+			"exec(", "system(", "shell_exec(", "passthru(",
+			"os.Exec", "subprocess", "Process.Start",
+		},
+		"path_traversal": {
+			"../", "..\\", "~", "/etc/", "C:\\",
+			"file://", "file:///",
+		},
+		"ssrf": {
+			"http.Get", "http.Post", "fetch(", "axios.get",
+			"urllib.request", "requests.get",
+		},
+		"auth_bypass": {
+			"admin", "root", "password", "token", "secret",
+			"bypass", "skip", "ignore",
+		},
+	}
+
+	patterns, exists := securityPatterns[patternType]
+	if !exists {
+		return GitLabMCPResult{Error: fmt.Sprintf("不支持的安全模式类型: %s", patternType)}
+	}
+
+	// 搜索匹配的文件
+	var searchResults []map[string]interface{}
+	
+	// 获取项目文件列表
+	tree, _, err := git.Repositories.ListTree(projectID, &gitlab.ListTreeOptions{
+		Recursive: gitlab.Bool(true),
+		Ref:       gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("获取文件列表失败: %v", err)}
+	}
+
+	for _, item := range tree {
+		if item.Type == "tree" {
+			continue
+		}
+
+		// 检查文件类型过滤
+		if fileType != "" && !strings.HasSuffix(item.Path, "."+fileType) {
+			continue
+		}
+
+		// 获取文件内容
+		file, _, err := git.RepositoryFiles.GetFile(projectID, item.Path, &gitlab.GetFileOptions{
+			Ref: gitlab.String("main"),
+		})
+		if err != nil {
+			continue
+		}
+
+		// 解码Base64内容
+		content, err := base64.StdEncoding.DecodeString(file.Content)
+		if err != nil {
+			continue
+		}
+
+		// 在文件内容中搜索安全模式
+		lines := strings.Split(string(content), "\n")
+		for lineNum, line := range lines {
+			for _, pattern := range patterns {
+				if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
+					searchResults = append(searchResults, map[string]interface{}{
+						"file_path":   item.Path,
+						"line_number": lineNum + 1,
+						"pattern":     pattern,
+						"context":     getLineContext(lines, lineNum, 1),
+						"severity":    determineSeverity(pattern, patternType),
+					})
+				}
+			}
+		}
+	}
+
+	// 根据严重程度过滤
+	if severity != "" {
+		var filteredResults []map[string]interface{}
+		for _, result := range searchResults {
+			if result["severity"] == severity {
+				filteredResults = append(filteredResults, result)
+			}
+		}
+		searchResults = filteredResults
+	}
+
+	resultJSON, _ := json.Marshal(map[string]interface{}{
+		"pattern_type":   patternType,
+		"file_type":      fileType,
+		"severity":       severity,
+		"results":        searchResults,
+		"total_results":  len(searchResults),
+	})
+
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// executeGitLabDependencyAnalysis 执行依赖分析
+func executeGitLabDependencyAnalysis(args map[string]interface{}, git *gitlab.Client, projectID int) GitLabMCPResult {
+	filePath, ok := args["file_path"].(string)
+	if !ok || filePath == "" {
+		return GitLabMCPResult{Error: "file_path参数缺失或类型错误"}
+	}
+
+	analysisType, _ := args["analysis_type"].(string)
+	if analysisType == "" {
+		analysisType = "dependencies"
+	}
+
+	// 获取依赖文件内容
+	file, _, err := git.RepositoryFiles.GetFile(projectID, filePath, &gitlab.GetFileOptions{
+		Ref: gitlab.String("main"),
+	})
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("无法找到文件 %s，请检查文件路径是否正确", filePath)}
+	}
+
+	// 解码Base64内容
+	content, err := base64.StdEncoding.DecodeString(file.Content)
+	if err != nil {
+		return GitLabMCPResult{Error: fmt.Sprintf("Base64解码失败: %v", err)}
+	}
+
+	// 根据文件类型分析依赖
+	var dependencies []map[string]interface{}
+	var securityIssues []map[string]interface{}
+
+	lines := strings.Split(string(content), "\n")
+	
+	if strings.HasSuffix(filePath, "go.mod") {
+		// Go 模块依赖分析
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "require ") {
+				parts := strings.Fields(line)
+				if len(parts) >= 3 {
+					dependencies = append(dependencies, map[string]interface{}{
+						"name":    parts[1],
+						"version": parts[2],
+						"type":    "go",
+					})
+				}
+			}
+		}
+	} else if strings.HasSuffix(filePath, "package.json") {
+		// Node.js 依赖分析
+		var packageData map[string]interface{}
+		if err := json.Unmarshal(content, &packageData); err == nil {
+			if deps, ok := packageData["dependencies"].(map[string]interface{}); ok {
+				for name, version := range deps {
+					dependencies = append(dependencies, map[string]interface{}{
+						"name":    name,
+						"version": version,
+						"type":    "npm",
+					})
+				}
+			}
+		}
+	} else if strings.HasSuffix(filePath, "requirements.txt") {
+		// Python 依赖分析
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				parts := strings.Split(line, "==")
+				if len(parts) == 2 {
+					dependencies = append(dependencies, map[string]interface{}{
+						"name":    parts[0],
+						"version": parts[1],
+						"type":    "pip",
+					})
+				}
+			}
+		}
+	}
+
+	// 分析安全风险
+	for _, dep := range dependencies {
+		// 这里可以集成漏洞数据库查询
+		// 目前返回基本的安全检查建议
+		securityIssues = append(securityIssues, map[string]interface{}{
+			"dependency": dep["name"],
+			"version":    dep["version"],
+			"risk":       "medium", // 默认风险等级
+			"advice":     "建议检查依赖的已知漏洞",
+		})
+	}
+
+	resultData := map[string]interface{}{
+		"file_path":       filePath,
+		"analysis_type":   analysisType,
+		"dependencies":    dependencies,
+		"security_issues": securityIssues,
+		"total_deps":      len(dependencies),
+		"total_issues":    len(securityIssues),
+	}
+
+	resultJSON, _ := json.Marshal(resultData)
+	return GitLabMCPResult{Content: string(resultJSON)}
+}
+
+// 辅助函数
+func findFunctionEnd(lines []string, startIndex int) int {
+	braceCount := 0
+	inFunction := false
+	
+	for i := startIndex; i < len(lines); i++ {
+		line := lines[i]
+		
+		if strings.Contains(line, "func ") && !inFunction {
+			inFunction = true
+		}
+		
+		if inFunction {
+			braceCount += strings.Count(line, "{")
+			braceCount -= strings.Count(line, "}")
+			
+			if braceCount == 0 && inFunction {
+				return i + 1
+			}
+		}
+	}
+	
+	return len(lines)
+}
+
+func extractFunctionParameters(line string) []string {
+	// 简单的参数提取逻辑
+	if strings.Contains(line, "(") && strings.Contains(line, ")") {
+		start := strings.Index(line, "(")
+		end := strings.Index(line, ")")
+		if start < end {
+			params := strings.TrimSpace(line[start+1 : end])
+			if params != "" {
+				return strings.Split(params, ",")
+			}
+		}
+	}
+	return []string{}
+}
+
+func extractReturnType(line string) string {
+	// 简单的返回类型提取逻辑
+	if strings.Contains(line, ")") && strings.Contains(line, "{") {
+		parts := strings.Split(line, ")")
+		if len(parts) > 1 {
+			afterParen := strings.TrimSpace(parts[1])
+			if strings.Contains(afterParen, "{") {
+				returnType := strings.TrimSpace(afterParen[:strings.Index(afterParen, "{")])
+				return returnType
+			}
+		}
+	}
+	return ""
+}
+
+func getLineContext(lines []string, lineIndex, contextSize int) string {
+	start := max(0, lineIndex-contextSize)
+	end := min(len(lines), lineIndex+contextSize+1)
+	return strings.Join(lines[start:end], "\n")
+}
+
+func determineSeverity(pattern, patternType string) string {
+	highRiskPatterns := map[string][]string{
+		"sql_injection": {"SELECT", "INSERT", "UPDATE", "DELETE"},
+		"command_injection": {"exec(", "system(", "shell_exec("},
+		"ssrf": {"http.Get", "http.Post"},
+	}
+	
+	if patterns, exists := highRiskPatterns[patternType]; exists {
+		for _, highPattern := range patterns {
+			if strings.Contains(strings.ToLower(pattern), strings.ToLower(highPattern)) {
+				return "high"
+			}
+		}
+	}
+	
+	return "medium"
+}
+
+ 

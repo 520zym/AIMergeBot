@@ -532,33 +532,8 @@ func WebhookHandler(cfg *Config, storage *Storage) gin.HandlerFunc {
 			}
 		}
 
-		// 8. 根据模式决定是否生成修复建议
-		if cfg.ReAct.Enabled && cfg.MCP.Enabled && reactResult != nil {
-			// ReAct模式：使用ReAct生成的建议，不重复生成
-			log.Printf("ReAct模式：使用ReAct生成的修复建议，跳过重复生成")
-			
-			// 将ReAct的整体建议添加到每个问题的上下文中
-			if len(reactResult.Recommendations) > 0 {
-				recommendationsText := "整体修复建议：\n" + strings.Join(reactResult.Recommendations, "\n")
-				for i := range issues {
-					if issues[i].Context == "" {
-						issues[i].Context = recommendationsText
-					} else {
-						issues[i].Context = issues[i].Context + "\n\n" + recommendationsText
-					}
-				}
-			}
-		} else {
-			// 普通模式：为每个安全问题生成修复建议
-			log.Printf("普通模式：为每个问题生成修复建议")
-			for i := range issues {
-				if fixSuggestion, err := generateFixSuggestion(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.OpenAI.Model, issues[i]); err == nil {
-					issues[i].FixSuggestion = fixSuggestion
-				} else {
-					issues[i].FixSuggestion = "修复建议生成失败，请手动处理"
-				}
-			}
-		}
+		// 8. 统一生成智能修复建议
+		generateUnifiedFixSuggestions(cfg, issues, reactResult)
 
 		// 9. 存储分析结果
 		storage.SetAnalyzedStatus(projectID, mrIID, "done")
@@ -584,5 +559,32 @@ func WebhookHandler(cfg *Config, storage *Storage) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"msg": "MR 分析完成", "issues": issues})
+	}
+}
+
+// generateUnifiedFixSuggestions 统一生成智能修复建议
+func generateUnifiedFixSuggestions(cfg *Config, issues []SecurityIssue, reactResult *ReActAuditResult) {
+	// 为所有问题生成具体的修复建议
+	log.Printf("统一模式：为每个问题生成智能修复建议")
+	for i := range issues {
+		if fixSuggestion, err := generateFixSuggestion(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.OpenAI.Model, issues[i]); err == nil {
+			issues[i].FixSuggestion = fixSuggestion
+			log.Printf("已为问题 %d 生成修复建议", i+1)
+		} else {
+			log.Printf("生成修复建议失败: %v", err)
+			issues[i].FixSuggestion = "修复建议生成失败，请手动处理"
+		}
+	}
+	
+	// 如果是ReAct模式，添加整体建议到上下文
+	if reactResult != nil && len(reactResult.Recommendations) > 0 {
+		recommendationsText := "整体修复建议：\n" + strings.Join(reactResult.Recommendations, "\n")
+		for i := range issues {
+			if issues[i].Context == "" {
+				issues[i].Context = recommendationsText
+			} else {
+				issues[i].Context = issues[i].Context + "\n\n" + recommendationsText
+			}
+		}
 	}
 }

@@ -73,6 +73,30 @@ func formatMRComment(issues []SecurityIssue) string {
 	comment := "🔍 **AIMergeBot 安全审查完成**\n\n"
 	comment += "⚠️ **初步分析发现以下可能存在的安全风险（结果由 AI 提供，仅供参考）：**\n\n"
 
+	// 检查是否有ReAct的整体建议
+	var reactRecommendations []string
+	for _, issue := range issues {
+		if strings.Contains(issue.Context, "整体修复建议：") {
+			// 提取ReAct的整体建议
+			lines := strings.Split(issue.Context, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "• ") {
+					reactRecommendations = append(reactRecommendations, strings.TrimPrefix(strings.TrimPrefix(line, "- "), "• "))
+				}
+			}
+			break
+		}
+	}
+
+	// 如果有ReAct的整体建议，先显示
+	if len(reactRecommendations) > 0 {
+		comment += "🎯 **ReAct智能分析 - 整体修复建议：**\n\n"
+		for i, rec := range reactRecommendations {
+			comment += fmt.Sprintf("%d. %s\n", i+1, rec)
+		}
+		comment += "\n---\n\n"
+	}
+
 	for i, issue := range issues {
 		levelEmoji := "🔴"
 		if issue.Level == "medium" {
@@ -90,7 +114,9 @@ func formatMRComment(issues []SecurityIssue) string {
 			comment += fmt.Sprintf("**问题代码：**\n```\n%s\n```\n", issue.Code)
 		}
 		comment += fmt.Sprintf("**建议：** %s\n\n", issue.Suggestion)
-		if issue.Context != "" {
+		
+		// 显示上下文信息（排除ReAct的整体建议，避免重复）
+		if issue.Context != "" && !strings.Contains(issue.Context, "整体修复建议：") {
 			comment += fmt.Sprintf("**上下文：** %s\n\n", issue.Context)
 		}
 
@@ -243,35 +269,8 @@ func StartPollingWithDynamicConfig(globalConfig *atomic.Value, storage *Storage)
 					}
 				}
 
-				// 根据模式决定是否生成修复建议
-				if cfg.ReAct.Enabled && cfg.MCP.Enabled && reactResult != nil {
-					// ReAct模式：使用ReAct生成的建议，不重复生成
-					log.Printf("ReAct模式：使用ReAct生成的修复建议，跳过重复生成")
-					
-					// 将ReAct的整体建议添加到每个问题的上下文中
-					if len(reactResult.Recommendations) > 0 {
-						recommendationsText := "整体修复建议：\n" + strings.Join(reactResult.Recommendations, "\n")
-						for i := range issues {
-							if issues[i].Context == "" {
-								issues[i].Context = recommendationsText
-							} else {
-								issues[i].Context = issues[i].Context + "\n\n" + recommendationsText
-							}
-						}
-					}
-				} else {
-					// 普通模式：为每个安全问题生成修复建议
-					log.Printf("普通模式：为每个问题生成修复建议")
-					for i := range issues {
-						if fixSuggestion, err := generateFixSuggestion(cfg.OpenAI.APIKey, cfg.OpenAI.URL, cfg.OpenAI.Model, issues[i]); err == nil {
-							issues[i].FixSuggestion = fixSuggestion
-							log.Printf("已为问题 %d 生成修复建议", i+1)
-						} else {
-							log.Printf("生成修复建议失败: %v", err)
-							issues[i].FixSuggestion = "修复建议生成失败，请手动处理"
-						}
-					}
-				}
+				// 统一生成智能修复建议
+				generateUnifiedFixSuggestions(cfg, issues, reactResult)
 
 				// 标记为已分析，避免重复
 				storage.SetAnalyzedStatus(p.ID, mr.IID, "done")

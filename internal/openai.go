@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -29,7 +31,7 @@ func AnalyzeDiffWithOpenAI(apiKey, diff, baseURL, model string) ([]SecurityIssue
   - desc: 简要描述风险点
   - code: 相关代码片段（可多行）
   - suggestion: 修复建议
-  - file: 文件名（如能识别）
+  - file: 文件名（必须从diff中的"File: "行提取，如"File: main.go"则file字段应为"main.go"）
   - level: 风险等级（high/medium/low）
   - context: 相关上下文说明（如变量来源、调用链、业务背景等）
 - 如果没有任何安全问题，输出空数组 []。
@@ -45,6 +47,7 @@ func AnalyzeDiffWithOpenAI(apiKey, diff, baseURL, model string) ([]SecurityIssue
 8. 对于所有安全问题，需给出具体的代码片段、风险点说明和修复建议。
 9. 风险等级 level 按高危（high）、中危（medium）、低危（low）分级。
 10. context 字段补充变量来源、调用链、业务背景等有助于理解风险的上下文。
+11. 文件名解析：diff中每段都以"File: 文件名"开头，必须从该行提取文件名填入file字段，不要留空。
 
 【示例输出】
 [
@@ -58,6 +61,8 @@ func AnalyzeDiffWithOpenAI(apiKey, diff, baseURL, model string) ([]SecurityIssue
     "context": "userInput来源于外部请求，未做过滤。"
   }
 ]
+
+注意：如果diff中有"File: b.go"，则file字段必须填写"b.go"，不能为空或"未知文件"。
 
 PR 代码差异：
 ` + diff
@@ -80,6 +85,10 @@ PR 代码差异：
 			return nil, err
 		}
 	}
+	
+	// 后处理：确保文件名不为空，从diff中提取文件名
+	issues = postProcessFileNames(issues, diff)
+	
 	return issues, nil
 }
 
@@ -153,4 +162,124 @@ func trimCodeBlock(s string) string {
 		return s[7 : len(s)-3]
 	}
 	return s
+}
+
+// postProcessFileNames 后处理文件名，确保不为空
+func postProcessFileNames(issues []SecurityIssue, diff string) []SecurityIssue {
+	log.Printf("开始后处理文件名，issues数量: %d", len(issues))
+	
+	// 从diff中提取所有文件名
+	fileNames := extractFileNamesFromDiff(diff)
+	log.Printf("从diff中提取到文件名: %v", fileNames)
+	
+	// 检查当前issues的文件名状态
+	for i, issue := range issues {
+		log.Printf("Issue %d: 类型=%s, 文件名=%s", i+1, issue.Type, issue.File)
+	}
+	
+	// 如果只有一个文件，所有空文件名的issue都使用这个文件名
+	if len(fileNames) == 1 {
+		log.Printf("只有一个文件，所有空文件名的issue使用: %s", fileNames[0])
+		for i := range issues {
+			if issues[i].File == "" {
+				issues[i].File = fileNames[0]
+				log.Printf("修复Issue %d的文件名为: %s", i+1, fileNames[0])
+			}
+		}
+		return issues
+	}
+	
+	// 如果有多个文件，尝试根据代码内容匹配文件名
+	log.Printf("有多个文件，尝试智能匹配")
+	for i := range issues {
+		if issues[i].File == "" {
+			// 尝试根据代码内容匹配文件名
+			matchedFile := matchFileByCode(string(issues[i].Code), fileNames)
+			if matchedFile != "" {
+				issues[i].File = matchedFile
+				log.Printf("Issue %d智能匹配到文件: %s", i+1, matchedFile)
+			} else if len(fileNames) > 0 {
+				// 如果无法匹配，使用第一个文件名
+				issues[i].File = fileNames[0]
+				log.Printf("Issue %d使用默认文件: %s", i+1, fileNames[0])
+			}
+		}
+	}
+	
+	// 检查后处理结果
+	for i, issue := range issues {
+		log.Printf("后处理后Issue %d: 类型=%s, 文件名=%s", i+1, issue.Type, issue.File)
+	}
+	
+	return issues
+}
+
+// extractFileNamesFromDiff 从diff中提取文件名
+func extractFileNamesFromDiff(diff string) []string {
+	var fileNames []string
+	lines := strings.Split(diff, "\n")
+	
+	log.Printf("开始解析diff，总行数: %d", len(lines))
+	
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "File: ") {
+			fileName := strings.TrimPrefix(line, "File: ")
+			fileName = strings.TrimSpace(fileName)
+			if fileName != "" {
+				fileNames = append(fileNames, fileName)
+				log.Printf("第%d行找到文件名: %s", i+1, fileName)
+			}
+		}
+	}
+	
+	log.Printf("总共提取到 %d 个文件名", len(fileNames))
+	return fileNames
+}
+
+// matchFileByCode 根据代码内容匹配文件名
+func matchFileByCode(code string, fileNames []string) string {
+	// 简单的匹配逻辑：根据文件扩展名匹配
+	codeLower := strings.ToLower(code)
+	
+	for _, fileName := range fileNames {
+		ext := getFileExtension(fileName)
+		if ext != "" {
+			// 根据扩展名匹配代码语言特征
+			if matchesLanguage(codeLower, ext) {
+				return fileName
+			}
+		}
+	}
+	
+	return ""
+}
+
+// getFileExtension 获取文件扩展名
+func getFileExtension(fileName string) string {
+	parts := strings.Split(fileName, ".")
+	if len(parts) > 1 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
+// matchesLanguage 检查代码是否匹配特定语言
+func matchesLanguage(code string, ext string) bool {
+	switch ext {
+	case "go":
+		return strings.Contains(code, "package ") || strings.Contains(code, "func ") || strings.Contains(code, "import ")
+	case "py":
+		return strings.Contains(code, "import ") || strings.Contains(code, "def ") || strings.Contains(code, "class ")
+	case "js":
+		return strings.Contains(code, "function ") || strings.Contains(code, "const ") || strings.Contains(code, "let ") || strings.Contains(code, "var ")
+	case "java":
+		return strings.Contains(code, "public class ") || strings.Contains(code, "import ") || strings.Contains(code, "public static")
+	case "c":
+		return strings.Contains(code, "#include ") || strings.Contains(code, "int main") || strings.Contains(code, "printf")
+	case "cpp":
+		return strings.Contains(code, "#include ") || strings.Contains(code, "using namespace") || strings.Contains(code, "std::")
+	default:
+		return false
+	}
 }
