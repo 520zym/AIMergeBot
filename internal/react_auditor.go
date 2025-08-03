@@ -170,8 +170,6 @@ func (r *ReActAuditor) AuditWithReAct(diff string, projectInfo map[string]interf
 			log.Printf("ReAct步骤 %d - 工具调用: %s", step+1, reactStep.Action)
 		}
 
-		result.Steps = append(result.Steps, *reactStep)
-
 		// 如果是最终答案，结束推理
 		if isFinal {
 			log.Printf("ReAct步骤 %d - 到达最终答案", step+1)
