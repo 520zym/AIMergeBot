@@ -30,12 +30,14 @@ whitelist_extensions: ["txt", "md", "xlsx", "xls", "csv","zip"]
 
 # MCP和ReAct配置
 mcp:
-  # 是否启用MCP功能
+  # 是否启用MCP功能（核心代码搜索和分析工具）
   enabled: true
-  # 临时仓库存储路径（可选，默认使用系统临时目录）
-  temp_repo_path: ""
+  # MCP工具模式选择
+  # "simplified" - 简化版（推荐，只保留通用工具，让模型自由发挥，避免预设偏见）
+  # "full" - 完整版（包含所有安全强相关工具，可能有预设偏见）
+  mode: "simplified"  # 推荐使用简化模式，让模型基于代码逻辑自主判断
   # 最大推理步骤数
-  max_steps: 10
+  max_steps: 15  # 增加步骤数以支持更深入的分析
   # 是否启用详细日志
   verbose_logging: true
 
@@ -43,8 +45,10 @@ react:
   # 是否启用ReAct审计（替代传统AI分析）
   enabled: true
   # ReAct模型配置
-  model: "gpt-4o-mini"
+  model: "deepseek-chat"
   # 温度参数（0.0-1.0）
   temperature: 0.1
   # 最大重试次数
   max_retries: 3
+  # 最大推理步骤数
+  max_steps: 15
